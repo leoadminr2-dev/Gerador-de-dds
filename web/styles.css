@@ -97,7 +97,8 @@
 @media(max-width:990px){.brand-lockup{display:flex!important}.brand-lockup .brand-name{font-size:27px}.brand-dds{font-size:28px}}
 @media(max-width:560px){.brand-lockup .brand-name{font-size:21px;letter-spacing:-.8px}.brand-dds{font-size:23px}}
 
-/* Banner principal Gerador de DDS — responsivo, sem deformar a arte */
-.page-banner-wrap{width:100%;margin:18px 0 4px;overflow:hidden;border-radius:12px;background:#eef4fa;line-height:0}
-.page-banner{display:block;width:100%;height:auto;max-height:260px;object-fit:contain;object-position:center}
-@media(max-width:720px){.page-banner-wrap{margin:12px 0 2px;border-radius:8px}.page-banner{max-height:170px}}
+/* Banner principal Gerador de DDS — compacto e responsivo, sem deformar a arte */
+.page-banner-wrap{width:100%;margin:12px auto 2px;overflow:hidden;border-radius:10px;background:#eef4fa;line-height:0}
+.page-banner{display:block;width:100%;height:auto;max-height:155px;object-fit:contain;object-position:center}
+@media(max-width:990px){.page-banner{max-height:125px}}
+@media(max-width:720px){.page-banner-wrap{margin:8px auto 0;border-radius:7px}.page-banner{max-height:92px}}
