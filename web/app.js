@@ -359,5 +359,24 @@ $('backup-file').addEventListener('change',async e=>{
 
 function renderConfig(){const shiftOrder=['DIURNO','VESPERTINO','NOTURNO'];$('supervisor-table').innerHTML=shiftOrder.map(s=>`<div class="supervisor-row"><b>${esc(shiftLabel(s))}</b><span>${esc((state.supervisors[s]||[]).join(' e '))}</span></div>`).join('');$('unit-grid').innerHTML=(state.work_sites||state.units||['GIG','TECA','UNITED','GATE GOURMET']).map((u,i)=>`<div class="unit-chip"><span>${i+1}</span>${esc(u)}</div>`).join('');const unitSupervisors=[['UNITED','Wilker Maria'],['GATE GOURMET','Márcia Faustino'],['TECA · Terminal de Carga','Pedro Paulo'],['GIG','Responsável a confirmar']];const target=$('unit-supervisor-table');if(target)target.innerHTML=unitSupervisors.map(([unit,name])=>`<div class="supervisor-row"><b>${esc(unit)}</b><span>${esc(name)}</span></div>`).join('')}
 
+async function updateEnvironmentStatus(){
+ const tag=$('environment-status');if(!tag)return;
+ const paint=(online,label)=>{
+  tag.classList.toggle('online',online);tag.classList.toggle('offline',!online);
+  tag.innerHTML='<span class="live-dot" aria-hidden="true"></span><span>'+label+'</span>';
+ };
+ if(navigator.onLine===false){paint(false,'Ambiente Offline Ativado');return}
+ try{
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),4500);
+  try{
+   const response=await fetch('/api/health',{method:'GET',cache:'no-store',headers:{'Accept':'application/json'},signal:controller.signal});
+   clearTimeout(timeout);
+   if(!response.ok)throw new Error('Servidor indisponível');
+   paint(true,'Ambiente Online Ativado');
+  }finally{clearTimeout(timeout)}
+ }catch(_){paint(false,'Ambiente Offline Ativado')}
+}
+window.addEventListener('online',updateEnvironmentStatus);
+window.addEventListener('offline',updateEnvironmentStatus);
 async function loadState(showToast=false){try{const r=await api('/api/state');Object.assign(state,r);refreshSummary();renderRoster();renderHistory();renderConfig();if(showToast)toast('Dados atualizados.')}catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}}
-loadState();loadTopics();
+updateEnvironmentStatus();loadState();loadTopics();
