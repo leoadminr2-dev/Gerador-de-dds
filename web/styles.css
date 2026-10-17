@@ -54,3 +54,27 @@
 .about-hero h2.about-product-name{font-size:clamp(28px,3vw,42px);font-weight:900;letter-spacing:-1.2px;color:#123d76;text-transform:uppercase;margin:8px 0 12px}
 .about-story a{color:#1b5fa7;font-weight:700;overflow-wrap:anywhere}
 @media(max-width:720px){.page-intro h1.product-title{font-size:28px}.about-hero h2.about-product-name{font-size:27px}}
+
+
+/* Cabeçalho simplificado aprovado: marca principal e estado real do servidor */
+.brand-header{height:auto;min-height:112px;padding:22px 0 20px;border-bottom:1px solid #dbe5f0;align-items:center}
+.brand-heading h1{font-size:clamp(30px,3.2vw,46px);font-weight:900;letter-spacing:-1.5px;line-height:1.05;color:#123d76;margin:0}
+.brand-heading p{font-size:clamp(15px,1.5vw,20px);font-weight:500;color:#59718d;margin:7px 0 0;letter-spacing:.1px}
+.brand-header .topbar-right{margin-left:auto}
+.brand-header .environment-tag{font-size:12px;letter-spacing:0;padding:11px 15px;border-radius:10px;gap:9px;white-space:nowrap}
+.environment-tag.online{color:#176b4e;background:#e8f7ef;border-color:#9ed9ba}
+.environment-tag.online .live-dot{background:#239b68;box-shadow:0 0 0 3px rgba(35,155,104,.12)}
+.environment-tag.offline{color:#a72e35;background:#fff0f0;border-color:#efb6b9}
+.environment-tag.offline .live-dot{background:#c63c43;box-shadow:0 0 0 3px rgba(198,60,67,.12)}
+.brand-mark{width:47px;height:43px;border-radius:9px;background:#174b83;border-color:rgba(255,255,255,.22);font-size:13px;letter-spacing:.3px}
+.brand-name{font-size:22px;letter-spacing:.4px;color:#fff}
+.page-intro h2{font-size:28px;letter-spacing:-.8px;margin:8px 0;color:#152d4a}
+@media(max-width:720px){
+ .brand-header{min-height:94px;padding:17px 0;gap:10px;align-items:flex-start}
+ .brand-heading h1{font-size:clamp(24px,6vw,32px);letter-spacing:-.8px}
+ .brand-heading p{font-size:14px;margin-top:5px}
+ .brand-header .topbar-right{align-self:center}
+ .brand-header .environment-tag{font-size:0;padding:9px 10px;gap:7px}
+ .brand-header .environment-tag .live-dot{width:8px;height:8px}
+ .page-intro h2{font-size:23px}
+}
