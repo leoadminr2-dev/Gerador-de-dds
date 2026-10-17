@@ -24,6 +24,17 @@ A geração em massa aceita vários temas da biblioteca, turnos e unidades e re�
 No formulário principal, clique em **Gerar DDS em massa**. Marque um ou mais turnos e unidades, ou use “Marcar todos”/“Todas”. A aplicação cria um PDF separado por combinação selecionada que tenha colaboradores cadastrados; combinações vazias são listadas como ignoradas. Tema, data e conteúdo são compartilhados no lote. Abra e confira cada PDF antes de imprimir.
 
 
+
+## Biblioteca de temas DDS (catálogo ampliado)
+
+A biblioteca online é carregada pela API `/api/topics` a partir do catálogo incluído no código. O catálogo consolidado contém **163 títulos únicos**, incluindo prevenção de acidentes, limpeza aeroportuária, produtos químicos, EPI, ergonomia, circulação operacional, riscos biológicos, emergência, saúde ocupacional, fatores psicossociais e temas relacionados às Normas Regulamentadoras.
+
+Os títulos foram organizados com referência temática às Normas Regulamentadoras vigentes do Ministério do Trabalho e Emprego e às publicações de Segurança e Saúde no Trabalho da Fundacentro. Referências oficiais para consulta e atualização:
+- https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/inspecao-do-trabalho/seguranca-e-saude-no-trabalho/ctpp-nrs/normas-regulamentadoras-nrs
+- https://www.gov.br/fundacentro/pt-br/centrais-de-conteudo/biblioteca/publicacoes-institucionais
+
+Os DDS são rascunhos de orientação geral: a liderança deve conferir os procedimentos locais, rótulos/FDS, avaliação de riscos e regras operacionais antes de utilizar ou imprimir. A biblioteca inicial é recriada pelo aplicativo após a inicialização; temas cadastrados manualmente continuam sujeitos à persistência do armazenamento configurado na hospedagem.
+
 ## Hospedagem web (1.2.2)
 O pacote inclui `render.yaml`, `Procfile` e `DEPLOY_HOSTING.md` para preparar uma publicação protegida. A hospedagem ainda precisa ser criada na conta do responsável; este ZIP, sozinho, não publica o sistema. A configuração proposta utiliza autenticação administrativa obrigatória e armazenamento persistente. Revise os custos do provedor antes de ativar o serviço.
 
