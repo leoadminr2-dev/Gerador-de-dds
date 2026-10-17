@@ -87,7 +87,17 @@ def protect_local_mutations():
         if origin:
             parsed = urlsplit(origin)
             expected_scheme = 'https' if HOSTED_MODE else 'http'
-            if parsed.scheme != expected_scheme or parsed.netloc.lower() != request.host.lower() or parsed.path not in ('', '/'):
+            # Render terminates HTTPS at its proxy, so the internal request host may differ
+            # from the public browser origin. Accept only the app host reported by Render
+            # or the same request host; do not enable cross-origin requests.
+            allowed_hosts = {request.host.lower()}
+            render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '').strip().lower()
+            if render_host:
+                allowed_hosts.add(render_host)
+            forwarded_host = request.headers.get('X-Forwarded-Host', '').split(',')[0].strip().lower()
+            if forwarded_host:
+                allowed_hosts.add(forwarded_host)
+            if parsed.scheme != expected_scheme or parsed.netloc.lower() not in allowed_hosts or parsed.path not in ('', '/'):
                 return jsonify({'error': 'Solicitação de outra origem bloqueada.'}), 403
     return None
 
