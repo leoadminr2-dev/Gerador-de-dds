@@ -97,8 +97,8 @@
 @media(max-width:990px){.brand-lockup{display:flex!important}.brand-lockup .brand-name{font-size:27px}.brand-dds{font-size:28px}}
 @media(max-width:560px){.brand-lockup .brand-name{font-size:21px;letter-spacing:-.8px}.brand-dds{font-size:23px}}
 
-/* Banner principal — faixa limpa no topo, respeitando margens e sem deformar a arte */
-.page-banner-wrap{display:flex;align-items:center;justify-content:center;width:100%;height:150px;margin:12px auto 2px;overflow:hidden;border-radius:10px;background:#eef4fa;line-height:0}
+/* Banner principal — proporção equilibrada, usando toda a faixa superior disponível */
+.page-banner-wrap{display:flex;align-items:center;justify-content:center;width:100%;height:170px;margin:12px auto 4px;overflow:hidden;border-radius:10px;background:#eef4fa;line-height:0}
 .page-banner{display:block;width:100%;height:100%;max-height:none;object-fit:contain;object-position:center}
-@media(max-width:990px){.page-banner-wrap{height:128px}}
-@media(max-width:720px){.page-banner-wrap{height:116px;margin:8px auto 0;border-radius:7px}}
+@media(max-width:990px){.page-banner-wrap{height:148px}}
+@media(max-width:720px){.page-banner-wrap{height:132px;margin:8px auto 3px;border-radius:7px}}
