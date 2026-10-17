@@ -87,3 +87,12 @@
 .brand-dds{font-size:19px;font-weight:900;letter-spacing:3px;line-height:1.05;text-align:justify;text-align-last:justify;color:#a9cfff;padding-right:2px}
 @media(max-width:990px){.app-shell{grid-template-columns:190px minmax(0,1fr)}.sidebar{padding:20px 12px}.brand-block{justify-content:flex-start;padding:0 4px 22px}.brand-lockup{display:flex!important}.brand-lockup .brand-name{font-size:19px}.brand-dds{font-size:17px}.nav-item>span:last-child,.sidebar-footer>div:not(.shield-icon),.version-label{display:none}}
 @media(max-width:560px){.app-shell{grid-template-columns:150px minmax(0,1fr)}.sidebar{padding:16px 8px}.brand-lockup .brand-name{font-size:15px;letter-spacing:-.5px}.brand-dds{font-size:15px}.nav-item{padding:10px 5px}.nav-item>span:last-child{display:none}}
+
+
+/* Marca lateral: GERADOR em destaque e DDS preenchendo a linha inferior */
+.brand-lockup{width:100%;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:3px}
+.brand-lockup .brand-name{font-size:clamp(27px,2.25vw,34px);font-weight:950;letter-spacing:-1.25px;line-height:.98;white-space:nowrap;color:#fff}
+.brand-dds{width:100%;display:flex;align-items:center;justify-content:space-between;gap:0;color:#a9cfff;font-size:clamp(27px,2.3vw,35px);font-weight:950;letter-spacing:-1.5px;line-height:.95;text-align:justify;padding:0 1px}
+.brand-dds span{display:inline-block;flex:0 0 auto;text-shadow:0 1px 0 rgba(255,255,255,.12)}
+@media(max-width:990px){.brand-lockup{display:flex!important}.brand-lockup .brand-name{font-size:27px}.brand-dds{font-size:28px}}
+@media(max-width:560px){.brand-lockup .brand-name{font-size:21px;letter-spacing:-.8px}.brand-dds{font-size:23px}}
