@@ -327,7 +327,7 @@ def _search_engine(query: str, engine: str) -> list[dict]:
             if target: u=target
         u=unquote(u)
         if not _approved_source_url(u) or u in seen: continue
-        seen.add(u); found.append({'title':item.get('title') or host,'url':u,'snippet':item.get('snippet','')})
+        seen.add(u); found.append({'title':item.get('title') or (urlparse(u).hostname or 'Fonte da internet'),'url':u,'snippet':item.get('snippet','')})
         if len(found)>=10: break
     return found
 
