@@ -31,3 +31,14 @@
 - Se o conteúdo não couber no espaço disponível, ajustar a composição do conteúdo dentro das regras do modelo ou distribuí-lo de forma controlada em páginas adicionais, sem sobrepor nem deformar a estrutura institucional.
 - Antes de disponibilizar o PDF, validar visualmente que todo o conteúdo está dentro das margens e que o modelo permanece intacto.
 - Esta regra tem prioridade sobre qualquer melhoria estética, formatação automática ou expansão de conteúdo.
+
+
+## Personalização permitida aos usuários — estrutura protegida
+- A estrutura visual do modelo DDS é fixa e não editável pelos usuários comuns.
+- A interface de personalização deverá oferecer somente controles autorizados: (1) selecionar/enviar a logo da empresa ou setor e (2) escolher entre temas predefinidos.
+- A logo do usuário deve ocupar exclusivamente a área reservada no canto superior esquerdo do cabeçalho do DDS. Deve respeitar limites de tamanho e proporção, sem deslocar, cobrir ou redimensionar os demais elementos.
+- Os temas podem alterar somente as propriedades visuais explicitamente permitidas e previamente definidas. Não podem alterar margens, dimensões, posições, fontes estruturais, cabeçalho, rodapé, campos, linhas, tabelas, identificação institucional ou paginação.
+- Não oferecer editor livre de layout, arrastar e soltar elementos, edição de margens, fontes estruturais, posições, quadros ou rodapé.
+- A geração do PDF deve usar um modelo controlado pelo sistema e validar o conteúdo e a logo dentro das áreas permitidas antes de gerar o arquivo.
+- A personalização não pode alterar o modelo-base compartilhado com outros usuários; as preferências devem ser específicas de cada usuário/instalação.
+- Nota de segurança: em uma versão distribuída para download, código e arquivos locais podem ser modificados por alguém com conhecimento técnico. A interface pode bloquear alterações comuns, mas a proteção mais forte exige geração/validação no servidor ou distribuição de componentes compilados e assinados. Não prometer impossibilidade absoluta de modificação em uma cópia local.
