@@ -512,6 +512,55 @@ def _search_engine(query: str, engine: str, timeout: float=4.0) -> list[dict]:
     return found
 
 
+def _search_searxng(query: str, timeout: float=2.5) -> list[dict]:
+    """Try public SearXNG JSON endpoints before the traditional HTML engines.
+
+    DDS_SEARXNG_URL may contain comma-separated instance URLs. Public instances
+    vary in availability and may disable JSON, so failures fall through safely.
+    """
+    configured=os.environ.get('DDS_SEARXNG_URL','').strip()
+    bases=[x.strip().rstrip('/') for x in configured.split(',') if x.strip()]
+    if not bases:
+        bases=['https://searx.tiekoetter.com','https://search.sapti.me','https://searx.be','https://priv.au']
+    for base in bases[:4]:
+        if not base.startswith('https://'):
+            continue
+        try:
+            endpoint=base if base.endswith('/search') else base+'/search'
+            url=endpoint+'?q='+quote_plus(query)+'&format=json&language=pt-BR&safesearch=1'
+            req=Request(url,headers={
+                'User-Agent':'Mozilla/5.0 (compatible; GeradorDDS/1.2; public safety research)',
+                'Accept':'application/json',
+                'Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8',
+            })
+            with urlopen(req,timeout=max(0.5,min(2.5,timeout))) as response:
+                payload=json.loads(response.read(1_000_000).decode('utf-8',errors='replace'))
+            found=[]
+            for item in (payload.get('results',[]) if isinstance(payload,dict) else []):
+                target=html.unescape(str(item.get('url','') or '')).strip()
+                if not _approved_source_url(target):
+                    continue
+                host=(urlparse(target).hostname or '').lower().rstrip('.')
+                if any(host==d or host.endswith('.'+d) for d in (
+                    'searx.tiekoetter.com','search.sapti.me','searx.be','priv.au',
+                    'google.com','bing.com','duckduckgo.com','brave.com','ecosia.org','yahoo.com'
+                )):
+                    continue
+                title=' '.join(str(item.get('title','') or '').split()).strip()
+                snippet=' '.join(str(item.get('content','') or item.get('snippet','') or '').split()).strip()
+                if not title:
+                    title=urlparse(target).hostname or 'Fonte da internet'
+                found.append({'title':title,'url':target,'snippet':snippet})
+                if len(found)>=8:
+                    break
+            if found:
+                return found
+        except Exception:
+            # An instance may be down, rate-limited or have JSON disabled.
+            continue
+    return []
+
+
 def _web_search(topic: str) -> list[dict]:
     """Bounded search with DDS name expansion and several keyless search engines.
 
@@ -539,7 +588,7 @@ def _web_search(topic: str) -> list[dict]:
     deadline=time.monotonic()+24.0
     errors=[]
     # Try engines less affected by the recent 429s first. Every request has a short timeout.
-    engines=('brave','ecosia','yahoo','duckduckgo','google','bing')
+    engines=('searxng','brave','ecosia','yahoo','duckduckgo','google','bing')
     attempts=0
     for engine in engines:
         if time.monotonic() >= deadline or attempts >= 6:
@@ -547,7 +596,7 @@ def _web_search(topic: str) -> list[dict]:
         query=queries[attempts % len(queries)]
         attempts+=1
         try:
-            results=_search_engine(query,engine,timeout=min(4.0,max(0.5,deadline-time.monotonic())))
+            results=(_search_searxng(query,timeout=min(2.5,max(0.5,deadline-time.monotonic()))) if engine=='searxng' else _search_engine(query,engine,timeout=min(3.5,max(0.5,deadline-time.monotonic())))
         except Exception as exc:
             errors.append(f'{engine}: {type(exc).__name__}: {str(exc)[:120]}')
             continue
@@ -1348,6 +1397,8 @@ def research_topic():
         '• Siga o procedimento de trabalho, a sinalização e as orientações da liderança; utilize somente equipamentos para os quais recebeu treinamento.\n'
         '• Quando houver produto químico, equipamento ou risco específico, confirme rótulo, FDS, instruções do fabricante e procedimento aplicável. Não improvise misturas, reparos ou medidas de controle.\n'
         '• Isole ou sinalize a área quando for seguro fazê-lo e comunique imediatamente qualquer condição insegura, exposição ou incidente.\n\n'
+         'CONTEXTO AEROPORTUÁRIO\n'
+         'Em terminais e áreas de circulação, considere passageiros, bagagens, carrinhos, rotas acessíveis e saídas de emergência. Planeje a intervenção com a liderança, não bloqueie passagens e mantenha a sinalização até a área estar segura. Se não for possível controlar a circulação, interrompa a tarefa com segurança e solicite orientação.\n\n'
         'VERIFICAÇÃO ANTES DE USAR\nEste rascunho não foi validado por pesquisa automática nesta tentativa. Consulte as referências oficiais e adapte o DDS aos riscos e procedimentos reais do local antes de apresentar à equipe.\n\n'
         'MENSAGEM FINAL\nSegurança começa ao reconhecer o risco, seguir o procedimento e comunicar o que precisa ser corrigido.'
     )[:2600]
