@@ -365,7 +365,7 @@ def _web_search(topic: str) -> list[dict]:
     broad_query = f'{topic} segurança do trabalho prevenção orientação Brasil'
     errors=[]; found=[]
     for query in (official_query, broad_query):
-        for engine in ('duckduckgo','bing','google'):
+        for engine in ('google','duckduckgo','bing'):
             try:
                 results=_search_engine(query,engine)
                 if results:
