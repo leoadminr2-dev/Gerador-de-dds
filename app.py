@@ -267,7 +267,7 @@ def _source_is_official(url: str) -> bool:
     return False
 
 
-def _fetch_text(url: str, timeout: float=5.0) -> str:
+def _fetch_text(url: str, timeout: float=2.5) -> str:
     parsed=urlparse(url)
     if not _approved_source_url(url): return ''
     req=Request(url,headers={'User-Agent':'GeradorDDS/1.1.6 (public safety research; contact local operator)'})
@@ -323,22 +323,35 @@ class _GoogleResultParser(HTMLParser):
             self._link=None; self._buf=[]
 
 
-def _search_engine(query: str, engine: str) -> list[dict]:
+def _search_engine(query: str, engine: str, timeout: float=4.0) -> list[dict]:
+    """Fetch a small public search result page with a strict timeout."""
     if engine == 'duckduckgo':
         url='https://html.duckduckgo.com/html/?q='+quote_plus(query)
         parser_cls=_SearchResultParser
     elif engine == 'google':
         url='https://www.google.com/search?gbv=1&num=10&hl=pt-BR&q='+quote_plus(query)
         parser_cls=_GoogleResultParser
-    else:
+    elif engine == 'bing':
         url='https://www.bing.com/search?q='+quote_plus(query)+'&count=10'
         parser_cls=_BingResultParser
+    elif engine == 'brave':
+        url='https://search.brave.com/search?q='+quote_plus(query)+'&source=web'
+        parser_cls=_GoogleResultParser
+    elif engine == 'ecosia':
+        url='https://www.ecosia.org/search?q='+quote_plus(query)
+        parser_cls=_GoogleResultParser
+    elif engine == 'yahoo':
+        url='https://search.yahoo.com/search?p='+quote_plus(query)
+        parser_cls=_GoogleResultParser
+    else:
+        raise ValueError('Buscador não suportado')
     req=Request(url,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36','Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8'})
-    with urlopen(req,timeout=12.0) as response:
-        page=response.read(1_500_000).decode('utf-8',errors='replace')
+    with urlopen(req,timeout=max(0.5,timeout)) as response:
+        page=response.read(1_000_000).decode('utf-8',errors='replace')
     parser=parser_cls(); parser.feed(page)
     found=[]; seen=set()
     from urllib.parse import parse_qs
+    search_hosts=('google.com','bing.com','duckduckgo.com','brave.com','ecosia.org','ecosia.com','yahoo.com')
     for item in parser.results:
         u=html.unescape(item.get('url','')).strip()
         if u.startswith('//'): u='https:'+u
@@ -348,58 +361,100 @@ def _search_engine(query: str, engine: str) -> list[dict]:
         if parsed.netloc.lower().endswith('duckduckgo.com'):
             target=parse_qs(parsed.query).get('uddg',[''])[0]
             if target: u=target
+        # Remove common search-engine redirect wrappers when they expose a target URL.
+        parsed=urlparse(u)
+        if parsed.netloc.lower().endswith('yahoo.com'):
+            params=parse_qs(parsed.query)
+            for key in ('RU','url','u'):
+                target=params.get(key,[''])[0]
+                if target.startswith('https://'):
+                    u=target
+                    break
         u=unquote(u)
-        host=(urlparse(u).hostname or '').lower()
-        if host == 'google.com' or host.endswith('.google.com') or host in {'bing.com','www.bing.com'} or host.endswith('.bing.com'):
+        host=(urlparse(u).hostname or '').lower().rstrip('.')
+        if any(host == domain or host.endswith('.'+domain) for domain in search_hosts):
             continue
         if not _approved_source_url(u) or u in seen: continue
-        seen.add(u); found.append({'title':item.get('title') or (urlparse(u).hostname or 'Fonte da internet'),'url':u,'snippet':item.get('snippet','')})
-        if len(found)>=10: break
+        seen.add(u)
+        found.append({'title':item.get('title') or (urlparse(u).hostname or 'Fonte da internet'),'url':u,'snippet':item.get('snippet','')})
+        if len(found)>=8: break
     return found
 
 
 def _web_search(topic: str) -> list[dict]:
-    # Try multiple engines and both official-first and broad queries. A search result
-    # is useful only when we can retain a snippet or extract readable page text.
-    official_query = f'{topic} segurança do trabalho prevenção orientação site:gov.br OR site:fundacentro.gov.br'
-    broad_query = f'{topic} segurança do trabalho prevenção orientação Brasil'
-    errors = []
-    for query in (official_query, broad_query):
-        for engine in ('google', 'duckduckgo', 'bing'):
-            try:
-                results = _search_engine(query, engine)
-            except Exception as exc:
-                errors.append(f'{engine}: {type(exc).__name__}: {exc}')
-                continue
-            if not results:
-                errors.append(f'{engine}: sem resultados')
-                continue
+    """Bounded search with DDS name expansion and several keyless search engines.
 
-            results.sort(key=lambda item: 0 if _source_is_official(item.get('url', '')) else 1)
-            enriched = []
-            for item in results:
-                item['authority'] = 'Fonte oficial' if _source_is_official(item.get('url', '')) else 'Fonte complementar — conferir antes de usar'
-                snippet = re.sub(r'\s+', ' ', str(item.get('snippet', '') or '')).strip()
+    Search engines often rate-limit shared hosting IPs. Keep the total work bounded,
+    prefer snippets when available, and only open a few source pages if necessary.
+    """
+    clean_topic=' '.join(str(topic or '').split()).strip()
+    normalized=normalize(clean_topic)
+    queries=[]
+    if re.search(r'\bDDS\b', normalized):
+        detail=re.sub(r'\bDDS\b','',clean_topic,flags=re.IGNORECASE).strip(' :-–—')
+        if detail:
+            queries.append(f'"Diálogo Diário de Segurança" "{detail}" prevenção riscos')
+            queries.append(f'"{detail}" segurança do trabalho Brasil')
+        else:
+            queries.append('"Diálogo Diário de Segurança" segurança do trabalho Brasil')
+            queries.append('"Diálogo Diário de Segurança" site:gov.br OR site:fundacentro.gov.br')
+    elif 'DIALOGO DIARIO DE SEGURANCA' in normalized:
+        queries.append(f'"{clean_topic}" segurança do trabalho Brasil')
+        queries.append(f'{clean_topic} prevenção site:gov.br OR site:fundacentro.gov.br')
+    else:
+        queries.append(f'{clean_topic} segurança do trabalho prevenção Brasil')
+        queries.append(f'{clean_topic} prevenção riscos ocupacionais site:gov.br OR site:fundacentro.gov.br')
+
+    deadline=time.monotonic()+24.0
+    errors=[]
+    # Try engines less affected by the recent 429s first. Every request has a short timeout.
+    engines=('brave','ecosia','yahoo','duckduckgo','google','bing')
+    attempts=0
+    for engine in engines:
+        if time.monotonic() >= deadline or attempts >= 6:
+            break
+        query=queries[attempts % len(queries)]
+        attempts+=1
+        try:
+            results=_search_engine(query,engine,timeout=min(4.0,max(0.5,deadline-time.monotonic())))
+        except Exception as exc:
+            errors.append(f'{engine}: {type(exc).__name__}: {str(exc)[:120]}')
+            continue
+        if not results:
+            errors.append(f'{engine}: sem resultados')
+            continue
+
+        results.sort(key=lambda item: 0 if _source_is_official(item.get('url','')) else 1)
+        enriched=[]
+        page_reads=0
+        for item in results[:4]:
+            if time.monotonic() >= deadline:
+                break
+            item['authority']='Fonte oficial' if _source_is_official(item.get('url','')) else 'Fonte complementar — conferir antes de usar'
+            snippet=re.sub(r'\s+',' ',str(item.get('snippet','') or '')).strip()
+            excerpt=snippet
+            # Search snippets can provide a useful lead without fetching every result page.
+            # If no snippet exists, read at most two pages from this engine.
+            if not excerpt and page_reads < 2 and time.monotonic() < deadline:
+                page_reads+=1
                 try:
-                    body = _fetch_text(item['url'])
-                    excerpt = _extract_relevant_sentences(body, topic) if body else ''
+                    remaining=deadline-time.monotonic()
+                    body=_fetch_text(item['url'],timeout=min(2.5,max(0.5,remaining)))
+                    excerpt=_extract_relevant_sentences(body,clean_topic) if body else ''
                     if not excerpt and body:
-                        # Page extraction may succeed even when exact topic-word matching is too strict.
-                        plain = re.sub(r'\s+', ' ', body).strip()
-                        excerpt = plain[:1200]
+                        excerpt=re.sub(r'\s+',' ',body).strip()[:900]
                 except Exception as exc:
                     errors.append(f"leitura de fonte: {type(exc).__name__}")
-                    excerpt = ''
-                item['excerpt'] = excerpt or snippet
-                if item['excerpt']:
-                    enriched.append(item)
-                if len(enriched) >= 5:
-                    break
-            if enriched:
-                return enriched
-            errors.append(f'{engine}: links encontrados, mas sem texto extraível')
-    raise RuntimeError('Não foi possível obter conteúdo útil online (' + '; '.join(errors[-8:]) + ')')
-
+                    excerpt=''
+            item['excerpt']=excerpt
+            if excerpt:
+                enriched.append(item)
+            if len(enriched)>=3:
+                break
+        if enriched:
+            return enriched
+        errors.append(f'{engine}: links sem trecho de conteúdo extraível')
+    raise RuntimeError('Não foi possível obter conteúdo útil online dentro do limite de tempo ('+'; '.join(errors[-6:])+')')
 def _extract_relevant_sentences(text: str, topic: str, limit: int=5) -> str:
     if not text: return ''
     terms=[x.lower() for x in re.findall(r'[A-Za-zÀ-ÿ0-9]{4,}',topic) if x.lower() not in {'para','sobre','como','com','das','dos','uma','um','tema','trabalho'}]
