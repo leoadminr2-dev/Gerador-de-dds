@@ -230,13 +230,36 @@ class _SearchResultParser(HTMLParser):
 
 
 def _approved_source_url(url: str) -> bool:
-    parsed = urlparse(url)
-    if parsed.scheme != 'https' or not parsed.netloc:
+    """Allow public HTTPS result pages while blocking local/private and search-engine URLs."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme != 'https' or not parsed.hostname:
+            return False
+        host = parsed.hostname.lower().rstrip('.')
+        if host in {'localhost', '127.0.0.1', '::1', '0.0.0.0'}:
+            return False
+        if host.endswith(('.local', '.internal', '.localhost')):
+            return False
+        # Never fetch search result pages or redirector links as source material.
+        if host == 'duckduckgo.com' or host.endswith('.duckduckgo.com') or host == 'bing.com' or host.endswith('.bing.com'):
+            return False
+        # Reject literal private/reserved IP addresses.
+        import ipaddress
+        try:
+            ip = ipaddress.ip_address(host)
+            if not ip.is_global:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
         return False
-    host = parsed.netloc.lower().split(':')[0]
+
+
+def _source_is_official(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or '').lower().rstrip('.')
     path = parsed.path.lower()
-    # Primary sources are MTE and Fundacentro. Anvisa is allowed as a narrowly scoped
-    # official supplement for cleaning products, sanitation and airport health topics.
     if host == 'fundacentro.gov.br' or host.endswith('.fundacentro.gov.br'):
         return True
     if host == 'gov.br' or host.endswith('.gov.br'):
@@ -305,30 +328,45 @@ def _search_engine(query: str, engine: str) -> list[dict]:
         u=unquote(u)
         if not _approved_source_url(u) or u in seen: continue
         seen.add(u); found.append({'title':item.get('title') or host,'url':u,'snippet':item.get('snippet','')})
-        if len(found)>=5: break
+        if len(found)>=10: break
     return found
 
 
 def _web_search(topic: str) -> list[dict]:
-    query=f'{topic} segurança do trabalho prevenção orientação (site:gov.br/trabalho-e-emprego OR site:gov.br/fundacentro OR site:gov.br/anvisa OR site:fundacentro.gov.br)'
+    # First search authoritative Brazilian sources; if they do not return usable results,
+    # broaden to the public web. Results from non-official sites are explicitly labelled.
+    official_query = f'{topic} segurança do trabalho prevenção orientação site:gov.br OR site:fundacentro.gov.br'
+    broad_query = f'{topic} segurança do trabalho prevenção orientação Brasil'
     errors=[]; found=[]
-    # Tenta dois mecanismos: se um estiver bloqueado ou mudar o HTML, o outro pode funcionar.
-    for engine in ('duckduckgo','bing'):
-        try:
-            found=_search_engine(query,engine)
-            if found: break
-            errors.append(f'{engine}: nenhum resultado oficial reconhecido')
-        except Exception as exc:
-            errors.append(f'{engine}: {type(exc).__name__}: {exc}')
+    for query in (official_query, broad_query):
+        for engine in ('duckduckgo','bing'):
+            try:
+                results=_search_engine(query,engine)
+                if results:
+                    # Prefer official sources within each result set, then relevance/order.
+                    results.sort(key=lambda item: 0 if _source_is_official(item.get('url','')) else 1)
+                    found=results
+                    break
+                errors.append(f'{engine}: sem resultados úteis')
+            except Exception as exc:
+                errors.append(f'{engine}: {type(exc).__name__}: {exc}')
+        if found:
+            break
     if not found:
         raise RuntimeError('Não foi possível obter resultados online ('+'; '.join(errors)+')')
-    for item in found[:3]:
+    enriched=[]
+    for item in found:
+        item['authority'] = 'Fonte oficial' if _source_is_official(item.get('url','')) else 'Fonte complementar — conferir antes de usar'
         try:
             body=_fetch_text(item['url'])
             item['excerpt']=_extract_relevant_sentences(body,topic) if body else item.get('snippet','')
         except Exception:
             item['excerpt']=item.get('snippet','')
-    return [x for x in found if x.get('excerpt') or x.get('snippet')][:3]
+        if item.get('excerpt') or item.get('snippet'):
+            enriched.append(item)
+        if len(enriched)>=5:
+            break
+    return enriched
 
 def _extract_relevant_sentences(text: str, topic: str, limit: int=5) -> str:
     if not text: return ''
@@ -1063,7 +1101,7 @@ def research_topic():
         sources=_web_search(title)
         content=_draft_from_sources(title,sources)
         if content and sources:
-            category='Pesquisa técnica na internet'
+            category='Pesquisa na internet — revisar antes de usar'
             objective=f'Reforçar práticas seguras relacionadas a {title.lower()}, com base nas fontes públicas listadas.'
             now=datetime.now().isoformat(timespec='seconds')
             source_value='WEB-PESQUISADO:'+json.dumps(sources,ensure_ascii=False)
@@ -1074,14 +1112,14 @@ def research_topic():
                 else:
                     con.execute('INSERT INTO topics(title,category,objective,content,source,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',(title,category,objective,content,source_value,now,now))
                 con.commit()
-            return jsonify({'ok':True,'mode':'online','title':title,'category':category,'objective':objective,'content':content,'sources':sources,'message':'Pesquisa concluída. O conteúdo e as fontes foram salvos na biblioteca local para reutilização.'})
+            return jsonify({'ok':True,'mode':'online','title':title,'category':category,'objective':objective,'content':content,'sources':sources,'message':'Rascunho de pesquisa preparado a partir de fontes online. Confira as fontes e revise o conteúdo antes de usar; fontes complementares não são oficiais.'})
     except Exception as exc:
         app.logger.warning('Pesquisa online de DDS indisponível: %s',exc)
     # This action is explicitly a live-source validation workflow. Never label stale cache
     # or a generic offline draft as a successful research result.
     return jsonify({
         'ok': False,
-        'error': 'Não foi possível validar este tema nas fontes oficiais nesta tentativa. O conteúdo não foi marcado como verificado e nenhum rascunho automático foi carregado.',
+        'error': 'Não foi possível obter resultados úteis na internet nesta tentativa. Tente novamente com palavras-chave mais específicas.',
         'search_required': True,
         'sources_expected': ['Ministério do Trabalho e Emprego (MTE)', 'Fundacentro', 'Anvisa (quando pertinente)']
     }), 503
