@@ -1,0 +1,15 @@
+GERADOR DE DDS — VERSÃO 1.2.2
+
+1. Extraia todo o arquivo ZIP. Não execute o programa de dentro do ZIP.
+2. Abra a pasta Plataforma_DDS_Grupo_GPS.
+3. Execute run_windows.bat ou o atalho apropriado para sua versão do Windows.
+4. Na tela Novo DDS, escolha o tema, unidade (GIG, TECA, UNITED ou GATE GOURMET), turno e data. A duração é fixa em 01:00.
+5. Importe a planilha Excel na área Colaboradores. A lista do PDF será filtrada por turno e unidade.
+6. Revise o conteúdo, confirme os nomes e gere o PDF.
+7. Confira visualmente o PDF antes de imprimir.
+
+Padrão do PDF: FR-SGQ-001/AD-CO Rev.03; empresa TOP SERVICE - LIMPEZA; área LIMPEZA; Nº Participantes em branco; 5 linhas extras; rodapé e paginação em todas as páginas.
+
+
+HOSPEDAGEM WEB (1.2.2)
+O pacote inclui render.yaml, Procfile e DEPLOY_HOSTING.md. Ele está preparado para deploy, mas não publicado. A publicação exige conta do provedor, repositório autorizado e senha administrativa forte configurada como segredo.

@@ -1,0 +1,10 @@
+GERADOR DE DDS — ATUALIZAÇÃO 1.1.8
+
+- Campo Data do DDS inicia em branco e é opcional. Se não for preenchido, a data fica em branco no PDF institucional.
+- A geração em massa permite marcar vários temas salvos na biblioteca offline.
+- A geração em massa reúne os DDS selecionados (temas, turnos e unidades) em um único arquivo PDF.
+- Permanecem separados dentro do PDF os documentos institucionais de cada combinação tema/turno/unidade, com participantes e responsáveis corretos.
+- Combinações sem colaboradores são ignoradas e informadas no resultado.
+- Preservado o modelo institucional e a geração individual.
+
+Validação realizada: testes automatizados, sintaxe Python/JavaScript e integridade do pacote. A emissão com a planilha real deve ser conferida no computador de destino.

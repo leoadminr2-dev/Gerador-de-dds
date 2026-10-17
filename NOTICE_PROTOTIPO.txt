@@ -1,0 +1,3 @@
+GERADOR DE DDS — VERSÃO CONSOLIDADA 1.2.2
+
+Ferramenta local de apoio à preparação de Diálogos Diários de Segurança. Utiliza o formulário de referência FR-SGQ-001/AD-CO Rev.03 fornecido para revisão. O pacote não representa homologação oficial do Grupo GPS ou da TOP SERVICE. Valide o PDF no ambiente de destino antes de uso operacional.

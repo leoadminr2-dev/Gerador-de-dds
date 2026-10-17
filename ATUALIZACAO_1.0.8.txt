@@ -1,0 +1,14 @@
+GERADOR DE DDS — VERSÃO 1.0.8
+
+Correção solicitada: a unidade operacional correta é GIG.
+
+- Unidade operacional fixa: GIG.
+- Setor padrão e protegido no cadastro: LIMPEZA.
+- Terminal de Carga, United, Gate Gourmet e TPS2 Terminal agora são locais de trabalho, usados em cadastro, edição, filtro, resumo e seleção dos participantes.
+- O campo UNIDADE do PDF institucional sempre recebe GIG.
+- O PDF institucional original continua preservado: páginas, linhas, tabelas, cabeçalho e rodapé não foram redesenhados.
+- Cadastros antigos são migrados automaticamente: locais previamente gravados em Unidade Operacional ou Setor passam para Local de trabalho; a unidade fica GIG e o setor fica LIMPEZA.
+- Planilhas sem campo de local não recebem uma atribuição presumida. O local fica como Não definido; a seleção Todos os locais inclui os colaboradores sem local definido.
+- A importação, cadastro manual, edição, validação de duplicatas, filtros e histórico foram ajustados para a separação Unidade/Local.
+
+Validação técnica no ambiente de desenvolvimento: testes automatizados executados, sintaxe Python e JavaScript conferidas e PDF gerado para confirmar a coluna UNIDADE com GIG. É necessário validar a interface e a impressão no computador Windows de destino.

@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: gerador-de-dds
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /healthz
+    disk:
+      name: gerador-dds-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: DDS_HOSTED
+        value: "1"
+      - key: DDS_DATA_DIR
+        value: /var/data
+      - key: DDS_ADMIN_USER
+        value: admin
+      - key: DDS_ADMIN_PASSWORD
+        sync: false

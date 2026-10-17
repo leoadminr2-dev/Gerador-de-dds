@@ -1,0 +1,12 @@
+GERADOR DE DDS 1.1.4 — MODELO INSTITUCIONAL ORIGINAL
+
+- Base preservada da versão funcional anterior: importação Excel/XLSM, cadastro e filtros de colaboradores, biblioteca offline de temas, histórico, backups, prévia e geração de PDF.
+- Modelo PDF reconstruído a partir do formulário enviado pelo usuário: FR-SGQ-001/AD-CO, Revisão 03, mantendo cabeçalho, caixas vazias, bordas, campos e proporções.
+- Campos fixos: Local/Cliente GALEÃO; Empresa TOP SERVICE - LIMPEZA; Área LIMPEZA.
+- Unidade selecionável: GIG, TECA, UNITED ou GATE GOURMET; a lista e o cabeçalho usam a unidade escolhida.
+- Exibe apenas o turno selecionado e os respectivos responsáveis: DIURNO (Orlando Barbosa e Evelyn Montovani), VESPERTINO (Kayo Lessa e Bruna Fraga), NOTURNO (Maria do Socorro).
+- Nº Participantes permanece em branco; Duração é sempre 01:00.
+- A linha de cabeçalho abaixo de Turno preserva Responsável/Instrutor, QSSMA, Operação, Outros e Rubrica. Apenas o responsável do turno selecionado é preenchido; os campos restantes ficam disponíveis para marcação manual.
+- Lista de presença filtrada por turno e unidade, com nomes preenchidos, Área LIMPEZA, Unidade selecionada e 5 linhas extras em branco. Numeração sequencial e paginação dinâmica.
+- Rodapé em todas as páginas: “PROIBIDA a reprodução não autorizada” e “Página X de N” no canto inferior direito.
+- Conferências técnicas realizadas neste pacote: 41 testes automatizados, compilação sintática de Python e verificação sintática de JavaScript. A execução em máquina Windows e impressão física ainda precisam ser validadas no ambiente de destino.

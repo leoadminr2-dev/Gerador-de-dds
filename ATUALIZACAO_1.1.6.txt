@@ -1,0 +1,10 @@
+GERADOR DE DDS 1.1.6 — PESQUISA ONLINE E BIBLIOTECA OFFLINE
+
+- Adicionada pesquisa online de temas priorizando fontes públicas oficiais e técnicas.
+- O conteúdo pesquisado e as referências são salvos automaticamente no banco SQLite local.
+- Ao pesquisar novamente o mesmo tema já pesquisado, a plataforma reutiliza o cache local sem nova busca.
+- Se a internet estiver indisponível, usa um tema salvo offline quando disponível; caso contrário, identifica claramente o texto como rascunho offline não verificado.
+- A tela exibe a origem do conteúdo, links e trechos consultados.
+- Mantidos o modelo institucional, os cadastros, a importação de colaboradores, o histórico e a geração de PDF.
+
+IMPORTANTE: pesquisa automática não garante 100% de exatidão. O DDS precisa ser revisado por responsável competente e conferido com procedimentos locais, rótulos/FDS e normas vigentes antes de ser aplicado. A pesquisa depende do acesso à internet e da disponibilidade dos sites consultados.

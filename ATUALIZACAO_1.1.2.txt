@@ -1,0 +1,20 @@
+GERADOR DE DDS 1.1.2 — VARREDURA, GERAÇÃO PDF E CONTEÚDO EDITÁVEL
+
+CORREÇÕES TÉCNICAS
+- Identificador do serviço alterado para 1.1.2-local para impedir que o inicializador confunda uma instância antiga com o pacote atual.
+- Geração do PDF usa arquivo temporário, valida integridade e só então publica o arquivo final.
+- Erros inesperados ficam registrados em dds_generation.log com código de ocorrência, preservando a mensagem de erro compreensível na interface.
+- Identificação visual da versão atualizada e cache-busting dos arquivos front-end.
+
+CONTEÚDO E TEMAS
+- Inclusão de temas voltados à limpeza aeroportuária: sanitários de alto fluxo, fluxo de passageiros, contaminação cruzada, derramamentos desconhecidos, áreas operacionais e saneantes.
+- Conteúdo pode ser editado e salvo na biblioteca local, inclusive temas iniciais; o backup continua disponível em Configurações.
+- Adicionada análise crítica heurística para risco, ações preventivas, escalonamento, contexto aeroportuário e referência a procedimentos/rótulos.
+- O mecanismo de conteúdo é offline e não afirma ser IA nem pesquisa web. A análise é um apoio, não substitui validação da liderança, POPs, rótulos/FDS ou responsável técnico.
+
+PRESERVADO
+- Modelo institucional PDF original FR-SGQ-001/AD-CO Rev.03.
+- Turnos, responsáveis, locais, unidade GIG, setor LIMPEZA, importação de colaboradores e regra de colaboradores selecionados + 5 linhas em branco.
+
+LIMITAÇÃO
+- Os testes automatizados não substituem validação do PDF no computador real/Windows do usuário, nem homologação institucional.

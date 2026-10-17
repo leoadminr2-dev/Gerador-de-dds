@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+data/state.json
+data/outputs/
+node_modules/
+dist/
+build/
+release/
+*.log
+assets/source_reference_not_in_package.pdf
+output/*
+_smoke_render/
+_template_render/

@@ -1,0 +1,9 @@
+GERADOR DE DDS — VERSÃO 1.2.0
+
+Correção da pesquisa online:
+- A busca agora tenta DuckDuckGo e, se falhar ou não reconhecer resultados oficiais, tenta Bing.
+- Resultados continuam restritos a fontes oficiais/confiáveis permitidas pelo aplicativo.
+- Erros de conexão e ausência de resultados passam a gerar diagnóstico técnico no log, em vez de serem confundidos silenciosamente.
+- O banco de dados local continua guardando conteúdo pesquisado e fontes para reutilização offline.
+
+Observação: a disponibilidade depende da conexão do computador, firewall/proxy e acesso aos mecanismos/fontes. Se ambos estiverem bloqueados, o aplicativo informará a falha e usará o banco local quando houver conteúdo salvo.

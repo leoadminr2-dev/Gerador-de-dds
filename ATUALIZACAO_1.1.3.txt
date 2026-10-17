@@ -1,0 +1,11 @@
+GERADOR DE DDS 1.1.3 — PADRÃO INSTITUCIONAL E LISTA DINÂMICA
+
+- Mantém a base funcional da versão 1.1.2 e os recursos de importação, edição de temas, histórico, backups e emissão de PDF.
+- Empresa fixa: TOP SERVICE - LIMPEZA. Local/Cliente: GALEÃO. Área: LIMPEZA.
+- Unidades selecionáveis: GIG, TECA, UNITED e GATE GOURMET, com opção Todas as unidades.
+- A lista é filtrada pelo turno e, quando selecionada, pela unidade; os nomes correspondentes são impressos no formulário.
+- Acrescenta exatamente cinco linhas vazias para casos extraordinários após os nomes, com numeração sequencial.
+- O campo Nº Participantes permanece em branco.
+- Rodapé “PROIBIDA a reprodução não autorizada” e paginação “Página X de N” em todas as páginas físicas.
+- 41 testes automatizados aprovados, verificação sintática Python/JavaScript e renderização de PDF de amostra.
+- A execução no computador Windows e a impressão física ainda precisam ser conferidas.

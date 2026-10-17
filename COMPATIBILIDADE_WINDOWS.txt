@@ -1,0 +1,19 @@
+GERADOR DE DDS — PACOTE DE COMPATIBILIDADE WINDOWS
+Pacote web-ready 1.2.2 | Runtime local mantido para compatibilidade
+
+O inicializador seleciona um ambiente Python separado conforme o runtime instalado.
+- Windows 7: Python 3.8 de 32 bits, ambiente .venv38.
+- Windows 10/11: Python 3.11, ambiente .venv311.
+- Windows 8/8.1: tentativa conforme runtime disponivel; compatibilidade real depende dos patches, bibliotecas e navegador.
+
+Atalhos inclusos: Windows 7 32 bits, Windows 7 64 bits, Windows 8/8.1 e Windows 10/11. Todos chamam run_windows.bat, que seleciona o runtime.
+
+Requisitos: Python compativel instalado e autorizado pela TI; acesso a dependencias na primeira execucao; navegador moderno. Internet Explorer nao e suportado. Extraia o ZIP inteiro antes de executar.
+Windows XP e Vista nao sao suportados. Os atalhos nao significam que todos os sistemas tenham sido testados em hardware real.
+
+Dados locais: %LOCALAPPDATA%\GrupoGPS\PlataformaDDS
+Porta: http://127.0.0.1:8766
+
+Versao do servico local: 1.2.2-local (identificador usado pelos inicializadores para evitar reutilizar processo antigo); modo hospedado: 1.2.2-web-ready. O inicializador confere essa identificacao antes de reutilizar um processo ja aberto na mesma porta. Se a geracao falhar, consulte dds_generation.log na pasta local de dados.
+
+Regras de saida: Empresa TOP SERVICE - LIMPEZA; Local/Cliente GALEAO; area LIMPEZA; unidades GIG, TECA, UNITED ou GATE GOURMET; lista por turno/unidade com cinco linhas extras em branco; campo Nº Participantes em branco; aviso de reproducao e numero da pagina em todas as paginas.

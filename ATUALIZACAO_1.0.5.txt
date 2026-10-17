@@ -1,0 +1,24 @@
+GERADOR DE DDS - VERSAO 1.0.5
+
+Melhorias incluídas nesta versão:
+1. Edição de colaborador em formulário, com nome, turno, área, setor e unidade.
+2. Filtros combinados por nome, turno e setor e resumo da quantidade por turno.
+3. Conferência prévia obrigatória do DDS, incluindo data, tema, turno, setor, responsáveis, quantidade e nomes dos participantes.
+4. Backup JSON e restauração de cadastros, configurações, histórico e temas personalizados. A restauração valida os dados e grava uma cópia de segurança local antes da troca.
+5. Identificação da versão padronizada para 1.0.5 no aplicativo, iniciador e verificador do serviço.
+
+Preservação do modelo:
+- A importação Excel continua sem alterar o arquivo original.
+- O PDF institucional original e suas páginas, linhas e campos de assinatura permanecem inalterados como modelo-base.
+- O PDF gerado continua exigindo conferência visual antes da impressão.
+
+Limite do backup:
+O backup JSON não inclui os PDFs já gerados. Eles permanecem na subpasta outputs da pasta local de dados; copie essa pasta também se desejar arquivar os documentos.
+
+Validação executada nesta entrega:
+- Testes automatizados de backend.
+- Sintaxe JavaScript verificada com node --check.
+- IDs estáticos da interface conferidos, sem referências ausentes ou IDs duplicados.
+- Fluxos de exportação/restauração exercitados por teste de fumaça, incluindo rejeição de turno inválido.
+
+Abra pelo run_windows.bat. Extraia o ZIP para uma pasta nova e mantenha a versão anterior guardada até conferir o funcionamento no computador de destino.

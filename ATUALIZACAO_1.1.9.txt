@@ -1,0 +1,10 @@
+GERADOR DE DDS — VERSÃO 1.1.9
+
+1. A identidade visual da aplicação passa a destacar GERADOR DE DDS, sem o nome/logo do Grupo GPS na interface.
+2. A pesquisa do tema tenta consultar a internet em toda solicitação, mesmo quando já existe conteúdo salvo.
+3. Quando a pesquisa online funciona, o conteúdo e as fontes atualizados são salvos/atualizados no banco local.
+4. Se a internet ou as fontes falharem, o sistema pode reutilizar um conteúdo anteriormente pesquisado e salvo, informando que foi usado o cache offline.
+5. Mantido o modelo institucional do PDF de presença; a mudança de marca é somente na interface do aplicativo.
+6. O conteúdo continua sendo um rascunho para revisão humana e deve seguir procedimentos internos aplicáveis.
+
+Observação: o banco de temas e o histórico ficam na pasta de dados local do usuário no Windows. A pesquisa depende da disponibilidade da conexão e das fontes externas.

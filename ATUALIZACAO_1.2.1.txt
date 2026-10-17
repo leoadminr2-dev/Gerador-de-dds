@@ -1,0 +1,8 @@
+GERADOR DE DDS — VERSÃO 1.2.1
+
+- Nome GERADOR DE DDS ampliado e destacado na tela principal e na página Sobre.
+- Página Sobre atualizada com autoria declarada de Leonardo Moreira e links oficiais do MTE e da Fundacentro.
+- Explicação de rastreabilidade das fontes e aviso de que conteúdo precisa ser revisado; não sugere homologação oficial.
+- Exibe a referência de supervisores por unidade: UNITED — Wilker Maria; GATE GOURMET — Márcia Faustino; TECA/Terminal de Carga — Pedro Paulo. GIG permanece a confirmar.
+- Preserva os responsáveis existentes por turno, o fluxo de importação da planilha, a geração individual e em massa e a pesquisa online da versão 1.2.0.
+- Revisão de metadados e testes para a versão 1.2.1.

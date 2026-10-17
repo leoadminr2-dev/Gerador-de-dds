@@ -1,0 +1,9 @@
+GERADOR DE DDS 1.1.1 — CORRECAO DO INICIALIZADOR
+
+Corrige o erro de versao causado pelo inicializador anterior que exigia exclusivamente Python 3.8 de 32 bits.
+- Windows 7: ambiente isolado .venv38 com Python 3.8 de 32 bits.
+- Windows 10/11: ambiente isolado .venv311 com Python 3.11.
+- Mantem os dados locais e a porta 8766.
+- Preserva o aplicativo, o PDF institucional e as regras da versao 1.0.9.
+
+A compatibilidade deve ser confirmada em cada computador.

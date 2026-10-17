@@ -1,0 +1,14 @@
+GERADOR DE DDS — VERSÃO 1.0.7
+
+Ajustes desta versão:
+- Separação correta entre Unidade Operacional e Setor.
+- Unidades disponíveis: Terminal de Carga, United, Gate Gourmet e TPS2 Terminal.
+- Setor padrão dos colaboradores: LIMPEZA.
+- Cadastro, edição, filtros, resumo e histórico exibem a unidade operacional separadamente.
+- Importação converte antigos setores que representavam unidades para o campo Unidade Operacional.
+- Cadastros anteriores são migrados localmente sem alterar a planilha Excel original.
+- O PDF institucional continua usando o modelo original; a coluna UNIDADE mostra a unidade operacional atribuída.
+
+Importante: planilhas que não informam a unidade operacional são importadas sem atribuição. Atribua a unidade correta na tela Colaboradores; não é feita atribuição automática a um posto.
+
+Validação concluída no ambiente de desenvolvimento: 34 testes automatizados passaram; sintaxe Python e JavaScript verificadas; geração de PDF testada com filtro por unidade operacional. Ainda é necessário conferir a interface e a impressão no computador Windows de destino.

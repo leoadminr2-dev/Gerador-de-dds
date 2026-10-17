@@ -1,0 +1,12 @@
+GERADOR DE DDS — PACOTE DE HOSPEDAGEM 1.2.2
+
+- Preparação para deploy web com Procfile, gunicorn e blueprint render.yaml.
+- Modo hospedado com autenticação administrativa obrigatória; a aplicação não inicia em modo hospedado sem senha de no mínimo 16 caracteres.
+- Rota /healthz para verificação técnica.
+- Disco persistente esperado em /var/data para dados, SQLite e PDFs.
+- Pesquisa de tema restringida a fontes oficiais aprovadas: MTE, Fundacentro e Anvisa quando pertinente.
+- Falha na pesquisa ao vivo agora falha de forma explícita; conteúdo antigo/genérico não é retornado como se tivesse sido verificado naquele momento.
+- Criado DEPLOY_HOSTING.md com instruções e aviso de custos/autorização.
+- Criado ROADMAP_PAINEL_ADMIN_CENTRAL.md para planejar gerenciamento de todos os aplicativos em um painel.
+
+IMPORTANTE: este pacote está preparado para publicação, mas ainda não está hospedado. É necessária autorização da conta do provedor, conexão com repositório e configuração do segredo DDS_ADMIN_PASSWORD.

@@ -1,0 +1,13 @@
+GERADOR DE DDS - VERSAO 1.0.4
+
+Nova funcionalidade: editar colaborador na tela Colaboradores.
+Permite alterar nome, turno (manha/tarde/madrugada), area, setor operacional e unidade.
+As alteracoes ficam salvas localmente no computador. O arquivo Excel original nao e modificado.
+
+Para usar: feche a versao anterior, extraia este ZIP em uma pasta nova e execute run_windows.bat.
+Turnos aceitos no editor:
+- DIURNO = manha
+- VESPERTINO = tarde
+- NOTURNO = madrugada
+
+Testes automatizados do backend: 25 aprovados.

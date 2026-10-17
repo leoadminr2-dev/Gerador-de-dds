@@ -1,0 +1,11 @@
+GERADOR DE DDS — VERSÃO 1.0.9
+
+Melhoria solicitada: a lista de presença reserva uma linha para cada colaborador selecionado e acrescenta exatamente 5 linhas em branco.
+
+- O PDF não imprime páginas inteiras desnecessárias quando a equipe ocupa poucas linhas.
+- A lista cresce automaticamente além das 108 linhas do modelo inicial, repetindo a página de continuação institucional quando necessário.
+- A numeração continua em sequência nas páginas adicionais.
+- Os campos UNIDADE=GIG e setor LIMPEZA, os turnos, os responsáveis e os dados dos colaboradores foram preservados.
+- O PDF institucional original continua como base; as páginas extras reutilizam seu layout de lista de presença.
+
+Validação técnica: testes automatizados, geração real de PDFs com diferentes quantidades de colaboradores, numeração contínua e conferência de quantidade de páginas. A impressão final deve ser validada no computador operacional.

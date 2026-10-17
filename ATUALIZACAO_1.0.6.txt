@@ -1,0 +1,10 @@
+GERADOR DE DDS — VERSÃO 1.0.6
+
+Ajuste desta versão: deixar o setor padrão como LIMPEZA.
+
+- LIMPEZA fica pré-preenchido no cadastro manual e nos registros sem setor.
+- Registros existentes sem setor recebem LIMPEZA na primeira leitura.
+- Setores já informados são preservados nesta versão.
+- As regras de turno, responsáveis e o PDF institucional original foram preservados.
+
+A versão 1.0.7 separa Unidade Operacional de Setor e faz a migração correspondente dos cadastros antigos.

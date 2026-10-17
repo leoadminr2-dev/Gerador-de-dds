@@ -1,0 +1,1 @@
+Leia COMPATIBILIDADE_WINDOWS.txt para requisitos e limites. Extraia todo o ZIP para uma pasta local autorizada e execute o atalho do Windows correspondente. O inicializador escolhe Python 3.8 32 bits para Windows 7 quando disponível ou Python 3.11 para Windows 10/11.

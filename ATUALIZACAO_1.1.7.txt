@@ -1,0 +1,13 @@
+GERADOR DE DDS — VERSÃO 1.1.7
+
+NOVA FUNÇÃO: GERAÇÃO DE DDS EM MASSA
+- Novo botão “Gerar DDS em massa” no formulário principal.
+- Permite marcar um, vários ou todos os turnos: manhã/diurno, tarde/vespertino e madrugada/noturno.
+- Permite marcar uma, várias ou todas as unidades: GIG, TECA, UNITED e GATE GOURMET.
+- Gera um PDF institucional separado para cada combinação turno/unidade selecionada que tenha colaboradores cadastrados.
+- Cada documento mantém a lista de presença, responsáveis e unidade próprios.
+- Combinações sem colaboradores são ignoradas e informadas no resultado.
+- Cada PDF gerado fica salvo na pasta local de saídas e entra no histórico.
+- O tema, a data e o conteúdo revisado são compartilhados entre os documentos do lote.
+
+A geração individual permanece disponível. Confira todos os PDFs antes de imprimir ou aplicar o DDS.

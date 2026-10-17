@@ -1,0 +1,7 @@
+GERADOR DE DDS 1.1.5 — AJUSTES VISUAIS PONTUAIS
+
+- Responsáveis do turno diurno exibidos como ORLANDO BARBOSA e EVELYN MONTOVANI.
+- Quatro espaços visuais adicionados entre a coluna do número e o nome do colaborador.
+- Linhas duplas da lista de presença reforçadas e uniformizadas em todas as colunas.
+- Bordas dos campos Título e Objetivo/Conteúdo reforçadas.
+- Nenhuma outra funcionalidade do aplicativo foi intencionalmente alterada.
