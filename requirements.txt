@@ -5,7 +5,7 @@ itsdangerous==2.2.0
 click==8.1.8
 blinker==1.8.2
 MarkupSafe==2.1.5
-PyMuPDF==1.23.26
+PyMuPDF==1.28.2
 openpyxl==3.1.5
 et-xmlfile==2.0.0
 waitress==2.1.2
