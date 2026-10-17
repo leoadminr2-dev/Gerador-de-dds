@@ -78,3 +78,12 @@
  .brand-header .environment-tag .live-dot{width:8px;height:8px}
  .page-intro h2{font-size:23px}
 }
+
+
+/* Marca lateral em duas linhas: nome principal e DDS alinhado */
+.brand-block{align-items:flex-start;padding-top:2px;padding-bottom:25px}
+.brand-lockup{width:100%;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:1px}
+.brand-lockup .brand-name{font-size:clamp(19px,1.7vw,25px);font-weight:900;letter-spacing:-.65px;line-height:1.05;white-space:nowrap}
+.brand-dds{font-size:19px;font-weight:900;letter-spacing:3px;line-height:1.05;text-align:justify;text-align-last:justify;color:#a9cfff;padding-right:2px}
+@media(max-width:990px){.app-shell{grid-template-columns:190px minmax(0,1fr)}.sidebar{padding:20px 12px}.brand-block{justify-content:flex-start;padding:0 4px 22px}.brand-lockup{display:flex!important}.brand-lockup .brand-name{font-size:19px}.brand-dds{font-size:17px}.nav-item>span:last-child,.sidebar-footer>div:not(.shield-icon),.version-label{display:none}}
+@media(max-width:560px){.app-shell{grid-template-columns:150px minmax(0,1fr)}.sidebar{padding:16px 8px}.brand-lockup .brand-name{font-size:15px;letter-spacing:-.5px}.brand-dds{font-size:15px}.nav-item{padding:10px 5px}.nav-item>span:last-child{display:none}}
