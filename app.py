@@ -305,15 +305,36 @@ class _BingResultParser(HTMLParser):
         elif tag=='li' and self._in_result: self._in_result=False; self._current=None
 
 
+class _GoogleResultParser(HTMLParser):
+    """Fallback parser for public Google HTML result links."""
+    def __init__(self):
+        super().__init__(); self.results=[]; self._link=None; self._buf=[]
+    def handle_starttag(self, tag, attrs):
+        if tag != 'a': return
+        attrs=dict(attrs); href=attrs.get('href','')
+        if href.startswith('http') or href.startswith('/url?'):
+            self._link={'url':href,'title':''}; self._buf=[]
+    def handle_data(self, data):
+        if self._link is not None: self._buf.append(data)
+    def handle_endtag(self, tag):
+        if tag=='a' and self._link is not None:
+            self._link['title']=' '.join(' '.join(self._buf).split())
+            if self._link['title']: self.results.append(self._link)
+            self._link=None; self._buf=[]
+
+
 def _search_engine(query: str, engine: str) -> list[dict]:
     if engine == 'duckduckgo':
         url='https://html.duckduckgo.com/html/?q='+quote_plus(query)
         parser_cls=_SearchResultParser
+    elif engine == 'google':
+        url='https://www.google.com/search?gbv=1&num=10&hl=pt-BR&q='+quote_plus(query)
+        parser_cls=_GoogleResultParser
     else:
         url='https://www.bing.com/search?q='+quote_plus(query)+'&count=10'
         parser_cls=_BingResultParser
-    req=Request(url,headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36','Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8'})
-    with urlopen(req,timeout=10.0) as response:
+    req=Request(url,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36','Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8'})
+    with urlopen(req,timeout=12.0) as response:
         page=response.read(1_500_000).decode('utf-8',errors='replace')
     parser=parser_cls(); parser.feed(page)
     found=[]; seen=set()
@@ -322,10 +343,15 @@ def _search_engine(query: str, engine: str) -> list[dict]:
         u=html.unescape(item.get('url','')).strip()
         if u.startswith('//'): u='https:'+u
         parsed=urlparse(u)
+        if parsed.path == '/url' and parsed.netloc.lower().endswith('google.com'):
+            params=parse_qs(parsed.query); u=params.get('q',params.get('url',['']))[0]
         if parsed.netloc.lower().endswith('duckduckgo.com'):
             target=parse_qs(parsed.query).get('uddg',[''])[0]
             if target: u=target
         u=unquote(u)
+        host=(urlparse(u).hostname or '').lower()
+        if host == 'google.com' or host.endswith('.google.com') or host in {'bing.com','www.bing.com'} or host.endswith('.bing.com'):
+            continue
         if not _approved_source_url(u) or u in seen: continue
         seen.add(u); found.append({'title':item.get('title') or (urlparse(u).hostname or 'Fonte da internet'),'url':u,'snippet':item.get('snippet','')})
         if len(found)>=10: break
@@ -339,7 +365,7 @@ def _web_search(topic: str) -> list[dict]:
     broad_query = f'{topic} segurança do trabalho prevenção orientação Brasil'
     errors=[]; found=[]
     for query in (official_query, broad_query):
-        for engine in ('duckduckgo','bing'):
+        for engine in ('duckduckgo','bing','google'):
             try:
                 results=_search_engine(query,engine)
                 if results:
