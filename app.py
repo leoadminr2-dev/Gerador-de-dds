@@ -596,7 +596,10 @@ def _web_search(topic: str) -> list[dict]:
         query=queries[attempts % len(queries)]
         attempts+=1
         try:
-            results=(_search_searxng(query,timeout=min(2.5,max(0.5,deadline-time.monotonic()))) if engine=='searxng' else _search_engine(query,engine,timeout=min(3.5,max(0.5,deadline-time.monotonic())))
+            if engine=='searxng':
+                results=_search_searxng(query,timeout=min(2.5,max(0.5,deadline-time.monotonic())))
+            else:
+                results=_search_engine(query,engine,timeout=min(3.5,max(0.5,deadline-time.monotonic())))
         except Exception as exc:
             errors.append(f'{engine}: {type(exc).__name__}: {str(exc)[:120]}')
             continue
