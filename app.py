@@ -1333,14 +1333,40 @@ def research_topic():
             return jsonify({'ok':True,'mode':'online','title':title,'category':category,'objective':objective,'content':content,'sources':sources,'message':'Rascunho de pesquisa preparado a partir de fontes online. Confira as fontes e revise o conteúdo antes de usar; fontes complementares não são oficiais.'})
     except Exception as exc:
         app.logger.warning('Pesquisa online de DDS indisponível: %s',exc)
-    # This action is explicitly a live-source validation workflow. Never label stale cache
-    # or a generic offline draft as a successful research result.
-    return jsonify({
-        'ok': False,
-        'error': 'Não foi possível obter resultados úteis na internet nesta tentativa. Tente novamente com palavras-chave mais específicas.',
-        'search_required': True,
-        'sources_expected': ['Ministério do Trabalho e Emprego (MTE)', 'Fundacentro', 'Anvisa (quando pertinente)']
-    }), 503
+    # Fallback resiliente: buscadores bloqueiam/limitam IPs de hospedagem gratuita.
+    # Não alegar que o conteúdo foi pesquisado: entregar rascunho identificado e links de consulta oficial.
+    from urllib.parse import quote_plus
+    now=datetime.now().isoformat(timespec='seconds')
+    category='Rascunho — validar fontes oficiais'
+    objective=f'Reforçar a prevenção dos riscos relacionados a {title.lower()} e orientar a equipe a confirmar as medidas nos procedimentos oficiais e locais.'
+    content=(
+        f'POR QUE É IMPORTANTE?\\nO tema “{title}” deve ser tratado considerando os riscos reais da atividade, o ambiente de trabalho e os procedimentos da empresa. '
+        'Este é um rascunho de apoio, não uma pesquisa verificada nem substitui treinamento, avaliação de risco ou orientação técnica.\\n\\n'
+        f'OBJETIVO\\nReconhecer perigos relacionados a {title.lower()}, prevenir incidentes e reforçar a comunicação de condições inseguras.\\n\\n'
+        'ORIENTAÇÕES PARA A EQUIPE\\n'
+        '• Antes de iniciar, observe o local e identifique perigos, pessoas expostas e condições fora do padrão.\\n'
+        '• Siga o procedimento de trabalho, a sinalização e as orientações da liderança; utilize somente equipamentos para os quais recebeu treinamento.\\n'
+        '• Quando houver produto químico, equipamento ou risco específico, confirme rótulo, FDS, instruções do fabricante e procedimento aplicável. Não improvise misturas, reparos ou medidas de controle.\\n'
+        '• Isole ou sinalize a área quando for seguro fazê-lo e comunique imediatamente qualquer condição insegura, exposição ou incidente.\\n\\n'
+        'VERIFICAÇÃO ANTES DE USAR\\nEste rascunho não foi validado por pesquisa automática nesta tentativa. Consulte as referências oficiais e adapte o DDS aos riscos e procedimentos reais do local antes de apresentar à equipe.\\n\\n'
+        'MENSAGEM FINAL\\nSegurança começa ao reconhecer o risco, seguir o procedimento e comunicar o que precisa ser corrigido.'
+    )[:2600]
+    sources=[
+        {'title':'MTE — buscar normas e orientações oficiais','url':'https://www.google.com/search?q='+quote_plus('site:gov.br/trabalho-e-emprego '+title+' segurança do trabalho'),'snippet':'Link de busca para localizar publicações oficiais; confirme o documento original.'},
+        {'title':'Fundacentro — buscar material técnico','url':'https://www.google.com/search?q='+quote_plus('site:gov.br/fundacentro '+title+' prevenção'),'snippet':'Link de busca para localizar material técnico; confirme o documento original.'}
+    ]
+    source_value='OFFLINE-DRAFT:'+json.dumps(sources,ensure_ascii=False)
+    try:
+        with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+            existing=con.execute('SELECT id FROM topics WHERE title=? COLLATE NOCASE',(title,)).fetchone()
+            if existing:
+                con.execute('UPDATE topics SET category=?,objective=?,content=?,source=?,updated_at=? WHERE id=?',(category,objective,content,source_value,now,existing[0]))
+            else:
+                con.execute('INSERT INTO topics(title,category,objective,content,source,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',(title,category,objective,content,source_value,now,now))
+            con.commit()
+    except Exception:
+        app.logger.exception('Não foi possível salvar o rascunho do tema')
+    return jsonify({'ok':True,'mode':'offline-draft','title':title,'category':category,'objective':objective,'content':content,'sources':sources,'message':'Os buscadores bloquearam ou não responderam. Foi criado um rascunho de segurança, NÃO uma pesquisa verificada. Abra as buscas oficiais, confira as fontes e revise o conteúdo antes de usar.'})
 
 
 
