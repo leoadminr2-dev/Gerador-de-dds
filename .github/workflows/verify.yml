@@ -20,5 +20,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Verificar sintaxe Python
         run: python -m py_compile app.py
+      - name: Verificar sintaxe JavaScript
+        run: node --check web/app.js
       - name: Executar testes de pesquisa e contingência
         run: python -m unittest discover -s tests -v
