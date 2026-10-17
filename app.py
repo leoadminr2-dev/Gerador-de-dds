@@ -379,13 +379,13 @@ def _web_search(topic: str) -> list[dict]:
             enriched = []
             for item in results:
                 item['authority'] = 'Fonte oficial' if _source_is_official(item.get('url', '')) else 'Fonte complementar — conferir antes de usar'
-                snippet = re.sub(r'\\s+', ' ', str(item.get('snippet', '') or '')).strip()
+                snippet = re.sub(r'\s+', ' ', str(item.get('snippet', '') or '')).strip()
                 try:
                     body = _fetch_text(item['url'])
                     excerpt = _extract_relevant_sentences(body, topic) if body else ''
                     if not excerpt and body:
                         # Page extraction may succeed even when exact topic-word matching is too strict.
-                        plain = re.sub(r'\\s+', ' ', body).strip()
+                        plain = re.sub(r'\s+', ' ', body).strip()
                         excerpt = plain[:1200]
                 except Exception as exc:
                     errors.append(f"leitura de fonte: {type(exc).__name__}")
