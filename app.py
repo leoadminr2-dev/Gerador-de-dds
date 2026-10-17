@@ -359,40 +359,46 @@ def _search_engine(query: str, engine: str) -> list[dict]:
 
 
 def _web_search(topic: str) -> list[dict]:
-    # First search authoritative Brazilian sources; if they do not return usable results,
-    # broaden to the public web. Results from non-official sites are explicitly labelled.
+    # Try multiple engines and both official-first and broad queries. A search result
+    # is useful only when we can retain a snippet or extract readable page text.
     official_query = f'{topic} segurança do trabalho prevenção orientação site:gov.br OR site:fundacentro.gov.br'
     broad_query = f'{topic} segurança do trabalho prevenção orientação Brasil'
-    errors=[]; found=[]
+    errors = []
     for query in (official_query, broad_query):
-        for engine in ('google','duckduckgo','bing'):
+        for engine in ('google', 'duckduckgo', 'bing'):
             try:
-                results=_search_engine(query,engine)
-                if results:
-                    # Prefer official sources within each result set, then relevance/order.
-                    results.sort(key=lambda item: 0 if _source_is_official(item.get('url','')) else 1)
-                    found=results
-                    break
-                errors.append(f'{engine}: sem resultados úteis')
+                results = _search_engine(query, engine)
             except Exception as exc:
                 errors.append(f'{engine}: {type(exc).__name__}: {exc}')
-        if found:
-            break
-    if not found:
-        raise RuntimeError('Não foi possível obter resultados online ('+'; '.join(errors)+')')
-    enriched=[]
-    for item in found:
-        item['authority'] = 'Fonte oficial' if _source_is_official(item.get('url','')) else 'Fonte complementar — conferir antes de usar'
-        try:
-            body=_fetch_text(item['url'])
-            item['excerpt']=_extract_relevant_sentences(body,topic) if body else item.get('snippet','')
-        except Exception:
-            item['excerpt']=item.get('snippet','')
-        if item.get('excerpt') or item.get('snippet'):
-            enriched.append(item)
-        if len(enriched)>=5:
-            break
-    return enriched
+                continue
+            if not results:
+                errors.append(f'{engine}: sem resultados')
+                continue
+
+            results.sort(key=lambda item: 0 if _source_is_official(item.get('url', '')) else 1)
+            enriched = []
+            for item in results:
+                item['authority'] = 'Fonte oficial' if _source_is_official(item.get('url', '')) else 'Fonte complementar — conferir antes de usar'
+                snippet = re.sub(r'\\s+', ' ', str(item.get('snippet', '') or '')).strip()
+                try:
+                    body = _fetch_text(item['url'])
+                    excerpt = _extract_relevant_sentences(body, topic) if body else ''
+                    if not excerpt and body:
+                        # Page extraction may succeed even when exact topic-word matching is too strict.
+                        plain = re.sub(r'\\s+', ' ', body).strip()
+                        excerpt = plain[:1200]
+                except Exception as exc:
+                    errors.append(f"leitura de fonte: {type(exc).__name__}")
+                    excerpt = ''
+                item['excerpt'] = excerpt or snippet
+                if item['excerpt']:
+                    enriched.append(item)
+                if len(enriched) >= 5:
+                    break
+            if enriched:
+                return enriched
+            errors.append(f'{engine}: links encontrados, mas sem texto extraível')
+    raise RuntimeError('Não foi possível obter conteúdo útil online (' + '; '.join(errors[-8:]) + ')')
 
 def _extract_relevant_sentences(text: str, topic: str, limit: int=5) -> str:
     if not text: return ''
