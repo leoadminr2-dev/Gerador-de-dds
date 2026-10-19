@@ -334,3 +334,9 @@
 .employee-selection-item input{accent-color:#145da0;flex:0 0 auto}
 .employee-selection-item span{overflow-wrap:anywhere}
 @media(max-width:600px){.employee-selection-list{grid-template-columns:1fr}.employee-selection-tools{align-items:flex-start;flex-direction:column}}
+
+/* Opção de todos os colaboradores integrada ao campo obrigatório Turno */
+.shift-field .employee-selection-toggle{margin-top:3px;padding:9px 10px;border:1px solid #d8e4f2;border-radius:9px;background:#f7faff}
+.shift-field .employee-selection-toggle b{font-size:12px}
+.shift-field .employee-selection-toggle small{font-weight:400}
+.employee-selection-panel{margin-top:10px}
