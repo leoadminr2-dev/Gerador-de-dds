@@ -17,7 +17,23 @@ services:
         value: "1"
       - key: DDS_DATA_DIR
         value: /var/data
-      - key: DDS_ADMIN_USER
-        value: admin
+      # Conta individual por pessoa; a inicialização falha se os segredos obrigatórios faltarem.
+      - key: DDS_ACCOUNT_AUTH
+        value: "1"
+      - key: DDS_ADMIN_EMAIL
+        sync: false
+      - key: DDS_SESSION_SECRET
+        sync: false
       - key: DDS_ADMIN_PASSWORD
+        sync: false
+      # O envio de e-mail é opcional no blueprint, mas necessário para avisos automáticos por e-mail.
+      - key: DDS_SMTP_HOST
+        sync: false
+      - key: DDS_SMTP_PORT
+        value: "587"
+      - key: DDS_SMTP_USER
+        sync: false
+      - key: DDS_SMTP_PASSWORD
+        sync: false
+      - key: DDS_SMTP_FROM
         sync: false
