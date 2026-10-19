@@ -866,6 +866,8 @@ document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loa
             f'<input type="hidden" name="csrf_token" value="{html_lib.escape(csrf, quote=True)}">'
             '<button style="padding:5px 10px;border:0;border-radius:6px;background:#123d76;color:#fff;font-weight:700" type="submit">Sair</button></form></span></div>'
         )
+        # send_from_directory enables direct passthrough; disable it before editing the HTML response.
+        response.direct_passthrough = False
         script = """<meta name="csrf-token" content="__CSRF__"><script>
 (function(){const nativeFetch=window.fetch.bind(window);window.fetch=async function(input,init){init=init||{};const method=String(init.method||(input&&input.method)||'GET').toUpperCase();const headers=new Headers(init.headers||(input&&input.headers)||{});const meta=document.querySelector('meta[name="csrf-token"]');if(!['GET','HEAD','OPTIONS'].includes(method)&&meta)headers.set('X-CSRF-Token',meta.content);const res=await nativeFetch(input,{...init,headers});const gate=res.headers.get('X-DDS-Access');if(gate==='login')location.assign('/login');else if(gate==='trial-expired')location.assign('/trial-expired');return res;};})();
 </script>""".replace("__CSRF__", html_lib.escape(csrf, quote=True))
