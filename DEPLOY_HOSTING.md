@@ -1,7 +1,7 @@
 # Hospedagem web — Gerador de DDS
 
 ## Estado desta branch
-Esta configuração prepara a hospedagem com **contas individuais e período de teste controlado pelo servidor**. A branch de teste não significa que o serviço está publicado ou que os segredos já foram configurados. Não ativar em produção até revisar custo, acesso, backup e SMTP.
+Esta configuração prepara a hospedagem com **contas individuais e período de teste controlado pelo servidor**. Por segurança, o blueprint começa com `DDS_ACCOUNT_AUTH=0`, mantendo o modo administrativo existente até os segredos obrigatórios estarem configurados. A branch de teste não significa que o serviço está publicado. Não ativar em produção até revisar custo, acesso, backup e SMTP.
 
 ## Como funciona o acesso
 - `DDS_ACCOUNT_AUTH=1` ativa autenticação individual. O aplicativo falha na inicialização se os segredos administrativos obrigatórios não estiverem configurados.
@@ -38,8 +38,8 @@ Não coloque senhas, tokens, banco de contas ou dados dos colaboradores no repos
 
 ## Procedimento de publicação
 1. Confirmar o plano e o custo vigente do serviço e do disco com o titular da conta; não iniciar/reconfigurar recurso pago sem autorização.
-2. Selecionar esta branch para revisão e configurar as variáveis de ambiente/segredos no painel do provedor. Não enviar segredos por chat ou commit.
-3. Confirmar que o disco persistente de 1 GB está montado em `/var/data`. A aplicação guarda os dados operacionais e `accounts.sqlite3` nesse local.
+2. Selecionar esta branch para revisão e configurar `DDS_ADMIN_EMAIL`, `DDS_ADMIN_PASSWORD` e `DDS_SESSION_SECRET` no painel do provedor. Não enviar segredos por chat ou commit.
+3. Manter `DDS_ACCOUNT_AUTH=0` até salvar e conferir todos os segredos; só então alterar para `1` e reiniciar/deployar o serviço.. A aplicação guarda os dados operacionais e `accounts.sqlite3` nesse local.
 4. Implantar primeiro em ambiente de teste com HTTPS e testar login administrativo, convite, cadastro, expiração, prorrogação, desativação, redefinição de senha e envio real de e-mail.
 5. Importar uma cópia de teste da planilha, validar pesquisa e geração de PDF institucional, conferindo a formatação e o histórico.
 6. Fazer backup de `/var/data` antes de atualizar ou mudar o disco. O banco de contas contém hashes e metadados pessoais; restringir o acesso ao backup.
