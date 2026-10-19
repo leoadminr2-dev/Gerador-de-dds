@@ -58,6 +58,29 @@ def _email(value: str | None) -> str:
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
+def _public_url(endpoint: str, **values) -> str:
+    """Build invite/reset links from trusted provider config, not the request Host header."""
+    path = url_for(endpoint, _external=False, **values)
+    hosted = os.environ.get("DDS_HOSTED", "").strip() == "1"
+    base = (os.environ.get("DDS_PUBLIC_BASE_URL", "").strip()
+            or os.environ.get("RENDER_EXTERNAL_URL", "").strip())
+    if not base and os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip():
+        base = "https://" + os.environ["RENDER_EXTERNAL_HOSTNAME"].strip()
+    if not base:
+        if hosted:
+            raise ValueError("Configure DDS_PUBLIC_BASE_URL ou confirme RENDER_EXTERNAL_URL no provedor.")
+        return request.url_root.rstrip("/") + path
+    if "://" not in base:
+        base = "https://" + base
+    parsed = urlparse(base)
+    if not parsed.netloc or parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+        raise ValueError("DDS_PUBLIC_BASE_URL deve conter somente a origem HTTPS da aplicação.")
+    if hosted and parsed.scheme.lower() != "https":
+        raise ValueError("DDS_PUBLIC_BASE_URL deve usar HTTPS.")
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise ValueError("Esquema de endereço público inválido.")
+    return base.rstrip("/") + path
+
 
 def _connect(db_path: Path) -> sqlite3.Connection:
     con = sqlite3.connect(str(db_path), timeout=15)
@@ -655,6 +678,10 @@ document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loa
         if invite_email and not EMAIL_RE.match(invite_email):
             return jsonify({"error": "Informe um e-mail válido ou deixe o campo vazio."}), 400
         token = secrets.token_urlsafe(32)
+        try:
+            invite_url = _public_url("dds_register_invitation", token=token)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 503
         invite_id = uuid.uuid4().hex
         actor = session["user_id"]
         now = _now()
@@ -664,7 +691,7 @@ document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loa
             con.execute("INSERT INTO invitations(id,email,token_hash,expires_at,created_by,created_at) VALUES(?,?,?,?,?,?)",
                         (invite_id, invite_email or None, _token_hash(token), _stamp(now + timedelta(days=INVITE_LIFETIME_DAYS)), actor, _stamp(now)))
             _audit(con, actor, "invitation_created", None, f"email={invite_email or 'livre'};expires={_stamp(now + timedelta(days=INVITE_LIFETIME_DAYS))}")
-        return jsonify({"ok": True, "invite_url": url_for("dds_register_invitation", token=token, _external=True),
+        return jsonify({"ok": True, "invite_url": invite_url,
                         "expires_at": _stamp(now + timedelta(days=INVITE_LIFETIME_DAYS))})
 
     @app.get("/api/admin/invitations", endpoint="dds_admin_invitations")
@@ -761,13 +788,17 @@ document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loa
             if user["status"] != "active":
                 return jsonify({"error": "Reative a conta antes de gerar um link de redefinição."}), 400
             token = secrets.token_urlsafe(32)
+            try:
+                reset_url = _public_url("dds_password_reset", token=token)
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 503
             reset_id = uuid.uuid4().hex
             now = _now()
             con.execute("UPDATE password_resets SET used_at=? WHERE user_id=? AND used_at IS NULL", (_stamp(now), user_id))
             con.execute("INSERT INTO password_resets(id,user_id,token_hash,expires_at,created_by,created_at) VALUES(?,?,?,?,?,?)",
                         (reset_id, user_id, _token_hash(token), _stamp(now + timedelta(hours=RESET_LIFETIME_HOURS)), actor, _stamp(now)))
             _audit(con, actor, "password_reset_link_created", user_id, "Link de uso único válido por uma hora.")
-            return jsonify({"ok": True, "reset_url": url_for("dds_password_reset", token=token, _external=True),
+            return jsonify({"ok": True, "reset_url": reset_url,
                             "expires_at": _stamp(now + timedelta(hours=RESET_LIFETIME_HOURS))})
 
     @app.get("/api/admin/notifications", endpoint="dds_admin_notifications")
