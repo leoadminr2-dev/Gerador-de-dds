@@ -318,3 +318,19 @@
 /* Status de armazenamento sem alterar o padrão visual da navegação. */
 .sidebar-status.storage-warning .nav-icon { background: rgba(255,190,75,.18); color: #ffe0a1; }
 .sidebar-status.storage-warning small { color: #ffe0a1 !important; }
+
+
+/* Seleção explícita de participantes do DDS */
+.employee-selection-box{margin-top:16px;padding:15px 16px;border:1px solid #d8e4f2;border-radius:12px;background:#f7faff}
+.employee-selection-toggle{display:flex;align-items:flex-start;gap:11px;cursor:pointer}
+.employee-selection-toggle input{width:18px;height:18px;margin:3px 0 0;flex:0 0 auto;accent-color:#145da0}
+.employee-selection-toggle span{display:flex;flex-direction:column;gap:5px}
+.employee-selection-toggle b{color:#173b65;font-size:14px}
+.employee-selection-toggle small{color:#52677f;font-size:12px;line-height:1.45}
+.employee-selection-panel{margin-top:14px;padding-top:12px;border-top:1px solid #d8e4f2}
+.employee-selection-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;font-size:13px}
+.employee-selection-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:220px;overflow:auto}
+.employee-selection-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e0e8f1;border-radius:8px;background:#fff;font-size:12px;cursor:pointer}
+.employee-selection-item input{accent-color:#145da0;flex:0 0 auto}
+.employee-selection-item span{overflow-wrap:anywhere}
+@media(max-width:600px){.employee-selection-list{grid-template-columns:1fr}.employee-selection-tools{align-items:flex-start;flex-direction:column}}
