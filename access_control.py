@@ -113,7 +113,8 @@ def _schema(db_path: Path) -> None:
             trial_started_at TEXT,
             trial_ends_at TEXT,
             last_login_at TEXT,
-            disabled_at TEXT
+            disabled_at TEXT,
+            session_version INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS invitations(
             id TEXT PRIMARY KEY,
@@ -167,6 +168,10 @@ def _schema(db_path: Path) -> None:
         CREATE INDEX IF NOT EXISTS idx_notifications_pending ON trial_notifications(status,created_at);
         CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(key_hash,failed_at);
         """)
+        # Safe additive migration for an existing account database.
+        columns = {row["name"] for row in con.execute("PRAGMA table_info(users)").fetchall()}
+        if "session_version" not in columns:
+            con.execute("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0")
 
 
 def _user_by_id(db_path: Path, user_id: str | None):
@@ -391,7 +396,7 @@ def install_account_access(app, data_dir: Path) -> None:
                 _audit(con, admin_id, "bootstrap_admin_created", admin_id, "Conta inicial criada por variável de ambiente.")
             else:
                 # The configured secret is the administrator recovery/rotation mechanism.
-                con.execute("UPDATE users SET role='admin',status='active',disabled_at=NULL,password_hash=? WHERE email=?",
+                con.execute("UPDATE users SET role='admin',status='active',disabled_at=NULL,password_hash=?,session_version=session_version+1 WHERE email=?",
                             (generate_password_hash(admin_password, method="scrypt"), admin_email))
         _start_worker(app, db_path)
 
@@ -425,8 +430,19 @@ def install_account_access(app, data_dir: Path) -> None:
         user = _user_by_id(db_path, session.get("user_id"))
         if not user or user["status"] != "active":
             session.pop("user_id", None)
+            session.pop("session_version", None)
             if path.startswith("/api/"):
                 response = jsonify({"error": "Faça login para continuar.", "code": "LOGIN_REQUIRED"})
+                response.status_code = 401
+                response.headers["X-DDS-Access"] = "login"
+                return response
+            return redirect(url_for("dds_login", next=path))
+
+        # Password changes and account status changes revoke prior signed-in sessions.
+        if session.get("session_version") is None or int(session.get("session_version", -1)) != int(user.get("session_version", 0)):
+            session.clear()
+            if path.startswith("/api/"):
+                response = jsonify({"error": "Sua sessão foi renovada. Entre novamente.", "code": "LOGIN_REQUIRED"})
                 response.status_code = 401
                 response.headers["X-DDS-Access"] = "login"
                 return response
@@ -495,6 +511,7 @@ def install_account_access(app, data_dir: Path) -> None:
         session.clear()
         session["csrf_token"] = secrets.token_urlsafe(32)
         session["user_id"] = user["id"]
+        session["session_version"] = int(user.get("session_version", 0))
         session.permanent = True
         with _connect(db_path) as con:
             con.execute("UPDATE users SET last_login_at=? WHERE id=?", (_stamp(), user["id"]))
@@ -574,6 +591,7 @@ def install_account_access(app, data_dir: Path) -> None:
             _audit(con, user_id, "tester_registered", user_id, "Conta criada por convite.")
         session.clear()
         session["user_id"] = user_id
+        session["session_version"] = 0
         session["csrf_token"] = secrets.token_urlsafe(32)
         session.permanent = True
         return redirect("/")
@@ -605,7 +623,7 @@ def install_account_access(app, data_dir: Path) -> None:
             reset = con.execute("SELECT * FROM password_resets WHERE token_hash=?", (_token_hash(token),)).fetchone()
             if not reset or reset["used_at"] or (_parse_stamp(reset["expires_at"]) or _now()) <= _now():
                 return _base_page("Link inválido", '<section class="card narrow"><h1>Link inválido ou vencido</h1><p>Solicite outro ao administrador.</p></section>', session["csrf_token"]), 400
-            con.execute("UPDATE users SET password_hash=? WHERE id=?",
+            con.execute("UPDATE users SET password_hash=?,session_version=session_version+1 WHERE id=?",
                         (generate_password_hash(password, method="scrypt"), reset["user_id"]))
             con.execute("UPDATE password_resets SET used_at=? WHERE id=?", (now, reset["id"]))
             con.execute("UPDATE password_resets SET used_at=? WHERE user_id=? AND used_at IS NULL", (now, reset["user_id"]))
@@ -774,7 +792,7 @@ document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loa
             if status == "active" and row["role"] == "tester" and _is_trial_expired(dict(row)):
                 return jsonify({"error": "O teste está vencido. Prorrogue o prazo antes de reativar."}), 400
             disabled_at = None if status == "active" else _stamp()
-            con.execute("UPDATE users SET status=?,disabled_at=? WHERE id=?", (status, disabled_at, user_id))
+            con.execute("UPDATE users SET status=?,disabled_at=?,session_version=session_version+1 WHERE id=?", (status, disabled_at, user_id))
             _audit(con, actor, "user_status_changed", user_id, f"status={status};reason={reason}")
         return jsonify({"ok": True})
 
