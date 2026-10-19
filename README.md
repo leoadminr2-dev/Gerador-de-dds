@@ -29,11 +29,15 @@ No formulário principal, clique em **Gerar DDS em massa**. Marque um ou mais tu
 
 A biblioteca online é carregada pela API `/api/topics` a partir do catálogo incluído no código. O catálogo consolidado contém **163 títulos únicos**, incluindo prevenção de acidentes, limpeza aeroportuária, produtos químicos, EPI, ergonomia, circulação operacional, riscos biológicos, emergência, saúde ocupacional, fatores psicossociais e temas relacionados às Normas Regulamentadoras.
 
-Os títulos foram organizados com referência temática às Normas Regulamentadoras vigentes do Ministério do Trabalho e Emprego e às publicações de Segurança e Saúde no Trabalho da Fundacentro. Referências oficiais para consulta e atualização:
+Os títulos foram organizados com referência temática às Normas Regulamentadoras vigentes do Ministério do Trabalho e Emprego e às publicações de Segurança e Saúde no Trabalho da Fundacentro. Os temas pesquisados passam a exibir a origem e as referências HTTPS aproveitáveis registradas na pesquisa; rascunhos criados quando os buscadores falham são identificados como não verificados, e não são apresentados como pesquisa online confirmada.
+
+Referências oficiais para consulta e atualização:
 - https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/inspecao-do-trabalho/seguranca-e-saude-no-trabalho/ctpp-nrs/normas-regulamentadoras-nrs
 - https://www.gov.br/fundacentro/pt-br/centrais-de-conteudo/biblioteca/publicacoes-institucionais
 
-Os DDS são rascunhos de orientação geral: a liderança deve conferir os procedimentos locais, rótulos/FDS, avaliação de riscos e regras operacionais antes de utilizar ou imprimir. A biblioteca inicial é recriada pelo aplicativo após a inicialização; temas cadastrados manualmente continuam sujeitos à persistência do armazenamento configurado na hospedagem.
+Antes de salvar um tema novo ou editado, o aplicativo executa uma pré-conferência usando a mesma rotina de medição do campo de conteúdo do PDF. Se o texto ultrapassar o espaço disponível, o salvamento é recusado para revisão manual; nenhuma frase é cortada automaticamente e o formulário institucional não é alterado. O gerador mantém sua validação final no momento de emitir o PDF.
+
+Os DDS são rascunhos de orientação geral: a liderança deve conferir os procedimentos locais, rótulos/FDS, avaliação de riscos e regras operacionais antes de utilizar ou imprimir. A API informa se a biblioteca está no computador local ou no servidor. A disponibilidade compartilhada e a preservação após reinicializações dependem de configurar o armazenamento persistente da hospedagem (por exemplo, DDS_DATA_DIR=/var/data no Render).
 
 ## Hospedagem web (1.2.2)
 O serviço web do Gerador de DDS está configurado no Render a partir deste repositório. A aplicação usa autenticação administrativa obrigatória em modo hospedado, verificação de saúde em `/healthz` e armazenamento persistente montado em `/var/data`. A variável `DDS_ADMIN_PASSWORD` deve permanecer definida como segredo no painel do Render e ter pelo menos 16 caracteres; não coloque credenciais no repositório. Antes de uso operacional, confirme a implantação atual, o acesso autorizado, a persistência dos dados e os custos do provedor. A ferramenta continua sujeita à validação da liderança, TI e Segurança/QSSMA e não deve ser apresentada como homologada sem aprovação formal.
