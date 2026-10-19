@@ -143,7 +143,7 @@ def _schema(db_path: Path) -> None:
             user_id TEXT NOT NULL,
             email TEXT NOT NULL,
             milestone_days INTEGER NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sent')),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sent','skipped')),
             created_at TEXT NOT NULL,
             sent_at TEXT,
             last_error TEXT,
@@ -264,8 +264,17 @@ def _process_trial_notifications(db_path: Path) -> None:
         ).fetchall()
     for row in pending:
         ends = _parse_stamp(row["trial_ends_at"])
-        when = ends.strftime("%d/%m/%Y %H:%M UTC") if ends else "indisponível"
         days = int(row["milestone_days"])
+        seconds_remaining = (ends - _now()).total_seconds() if ends else 0
+        current_milestone = int((seconds_remaining + 86399) // 86400) if seconds_remaining > 0 else 0
+        if current_milestone != days:
+            with _connect(db_path) as con:
+                con.execute(
+                    "UPDATE trial_notifications SET status='skipped',last_error=? WHERE id=? AND status='pending'",
+                    ("Marco passou antes da entrega; aviso não enviado.", row["id"]),
+                )
+            continue
+        when = ends.strftime("%d/%m/%Y %H:%M UTC") if ends else "indisponível"
         subject = f"Gerador de DDS: seu teste termina em {days} dia(s)"
         body = (
             f"Olá!\n\nO período de teste do Gerador de DDS termina em aproximadamente {days} dia(s).\n"
@@ -829,7 +838,7 @@ document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loa
         result = []
         for row in rows:
             item = dict(row)
-            item["status_label"] = "Enviado" if item["status"] == "sent" else "Pendente"
+            item["status_label"] = {"sent": "Enviado", "pending": "Pendente", "skipped": "Não enviado (marco passou)"}.get(item["status"], "Desconhecido")
             result.append(item)
         return jsonify({"notifications": result, "smtp_configured": bool(os.environ.get("DDS_SMTP_HOST", "").strip())})
 
