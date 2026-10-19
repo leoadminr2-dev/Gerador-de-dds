@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from flask import Flask, jsonify
 
-from access_control import install_account_access
+from access_control import install_account_access, _schema, _connect, _stamp, _process_trial_notifications
 
 
 CSRF_RE = re.compile(r'<meta name="csrf-token" content="([^"]+)">')
@@ -157,6 +157,45 @@ class AccountAccessTests(unittest.TestCase):
         self.assertEqual(extended.status_code, 200, extended.get_data(as_text=True))
         accessible = self.tester.get("/api/protected")
         self.assertEqual(accessible.status_code, 200)
+
+    def test_trial_notifications_are_idempotent_and_stale_notices_are_not_sent(self):
+        from datetime import datetime, timedelta, timezone
+        db_path = Path(self.temp.name) / "notices" / "accounts.sqlite3"
+        _schema(db_path)
+        now = datetime.now(timezone.utc)
+        due_id = "due-user"
+        stale_id = "stale-user"
+        with _connect(db_path) as con:
+            for user_id, email, days in (
+                (due_id, "due@example.com", 5),
+                (stale_id, "stale@example.com", 4),
+            ):
+                start = _stamp(now)
+                end = _stamp(now + timedelta(days=days))
+                con.execute(
+                    "INSERT INTO users(id,email,password_hash,role,status,created_at,activated_at,trial_started_at,trial_ends_at) "
+                    "VALUES(?,?,?,?,?,?,?,?,?)",
+                    (user_id, email, "not-a-login-hash", "tester", "active", start, start, start, end),
+                )
+            con.execute(
+                "INSERT INTO trial_notifications(id,user_id,email,milestone_days,status,created_at) VALUES(?,?,?,?,?,?)",
+                ("stale-notice", stale_id, "stale@example.com", 5, "pending", _stamp(now)),
+            )
+        _process_trial_notifications(db_path)
+        _process_trial_notifications(db_path)
+        with _connect(db_path) as con:
+            due_rows = con.execute(
+                "SELECT status,last_error FROM trial_notifications WHERE user_id=? AND milestone_days=5",
+                (due_id,),
+            ).fetchall()
+            stale = con.execute(
+                "SELECT status,last_error FROM trial_notifications WHERE id='stale-notice'"
+            ).fetchone()
+        self.assertEqual(len(due_rows), 1, "the unique user/milestone key must avoid duplicate notices")
+        self.assertEqual(due_rows[0]["status"], "pending")
+        self.assertIn("SMTP", due_rows[0]["last_error"])
+        self.assertEqual(stale["status"], "skipped")
+        self.assertIn("não enviado", stale["last_error"])
 
     def test_tester_cannot_open_admin_api(self):
         invite_url = self.create_invitation()
