@@ -93,22 +93,19 @@ function navigate(page){document.querySelectorAll('.page').forEach(p=>p.classLis
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.page)));
 document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.goto)));
 
-function employeesForShiftAndUnit(){const shift=$('shift').value;const site=$('operational-unit').value;return state.employees.filter(e=>(!shift||e.shift===shift)&&norm(e.work_site||e.operational_unit||e.sector||'')===norm(site))}
-function renderEmployeeSelection(){const box=$('employee-selection-panel'),list=$('employee-selection-list'),all=$('use-all-shift-employees');if(!box||!list||!all)return;const eligible=employeesForShiftAndUnit();box.classList.toggle('hidden',all.checked);$('employee-selection-hint').textContent=all.checked?'Todos os colaboradores da unidade e turno selecionados serão incluídos automaticamente.':'Desmarque ou marque nomes individualmente para definir a lista de presença.';list.innerHTML=eligible.length?eligible.map(e=>'<label class="employee-selection-item"><input type="checkbox" name="selected-employee" value="'+esc(String(e.id))+'" checked /><span>'+esc(e.name)+'</span></label>').join(''):'<p class="field-hint">Nenhum colaborador cadastrado para esta unidade e turno.</p>';list.querySelectorAll('input[name="selected-employee"]').forEach(input=>input.addEventListener('change',refreshSummary))}
-function filteredEmployees(){const eligible=employeesForShiftAndUnit();if($('use-all-shift-employees')?.checked!==false)return eligible;const selected=new Set(Array.from(document.querySelectorAll('input[name="selected-employee"]:checked')).map(input=>input.value));return eligible.filter(e=>selected.has(String(e.id)))}
-function refreshSummary(){const shift=$('shift').value;const unit=$('operational-unit').value;const results=filteredEmployees();const requiredRows=results.length+5;let physicalCapacity=0;for(const pageSize of [23,42,42]){physicalCapacity+=pageSize;if(requiredRows<=physicalCapacity)break;}while(requiredRows>physicalCapacity)physicalCapacity+=42;$('mini-topic').textContent=$('topic').value.trim().toUpperCase()||'TEMA DO DDS';$('summary-sector').textContent=unitLabel(unit);$('summary-unit').textContent='GALEÃO';$('mini-unit').textContent=unit;document.querySelectorAll('.mini-participant-unit').forEach(el=>el.textContent=unit);$('summary-shift').textContent=shift?shiftLabel(shift):'Aguardando seleção';$('summary-count').textContent=`${results.length} colaborador${results.length===1?'':'es'} encontrado${results.length===1?'':'s'}`;$('capacity-label').textContent=`${requiredRows} linhas (${results.length} nomes + 5 vazias)`;$('capacity-fill').style.width=`${Math.min(requiredRows/physicalCapacity*100,100)}%`;
- const unitKey=norm(unit);const fixedSupervisors={'UNITED':['WILKER MARIA'],'TECA':['PEDRO PAULO'],'GATE GOURMET':['MARCIA FASUTINO']};const supervisors=unitKey==='GIG'?(shift?(state.supervisors[shift]||[]):[]):(fixedSupervisors[unitKey]||[]);$('supervisor-value').textContent=supervisors.length?supervisors.join(' / '):(unitKey==='GIG'?'Selecione um turno para consultar':'Selecione uma unidade');
- const callout=$('roster-callout');if(state.employees.length===0){callout.classList.remove('hidden');callout.innerHTML='<span>!</span><div><b>Planilha de colaboradores ainda não carregada</b><p>Importe a lista na área “Colaboradores” para preencher os nomes automaticamente.</p><button type="button" class="text-button" data-goto="colaboradores">Importar agora →</button></div>';callout.querySelector('[data-goto]').addEventListener('click',()=>navigate('colaboradores'))}else if(!state.employees.some(e=>e.shift===shift&&norm(e.work_site||'')===norm(unit))){callout.classList.remove('hidden');callout.innerHTML='<span>!</span><div><b>Nenhum colaborador cadastrado para este turno e unidade</b><p>Abra Colaboradores e confira o turno e a unidade de cada pessoa. O DDS não incluirá colaboradores de outra unidade ou de outro turno.</p></div>'}else if(shift&&results.length===0){callout.classList.remove('hidden');callout.innerHTML='<span>!</span><div><b>Nenhum colaborador encontrado para a seleção</b><p>Confira o turno e a unidade escolhidos. O DDS não incluirá nomes de outra seleção.</p></div>'}else{callout.classList.add('hidden')}
+function employeesForShiftAndUnit(){const shift=$('shift').value;const site=$('operational-unit').value;return state.employees.filter(e=>(!shift||shift==='TODOS'||e.shift===shift)&&norm(e.work_site||e.operational_unit||e.sector||'')===norm(site))}
+function renderEmployeeSelection(){const box=$('employee-selection-panel'),list=$('employee-selection-list'),all=$('use-all-shift-employees');if(!box||!list||!all)return;const eligible=employeesForShiftAndUnit();box.classList.add('hidden');$('employee-selection-hint').textContent='Todos os colaboradores da unidade selecionada serão incluídos conforme o turno escolhido.';list.innerHTML=eligible.length?eligible.map(e=>'<label class="employee-selection-item"><input type="checkbox" name="selected-employee" value="'+esc(String(e.id))+'" checked /><span>'+esc(e.name)+'</span></label>').join(''):'<p class="field-hint">Nenhum colaborador cadastrado para esta unidade e turno.</p>';list.querySelectorAll('input[name="selected-employee"]').forEach(input=>input.addEventListener('change',refreshSummary))}
+function filteredEmployees(){return employeesForShiftAndUnit()}
+function refreshSummary(){const shift=$('shift').value;const unit=$('operational-unit').value;const results=filteredEmployees();const requiredRows=results.length+5;let physicalCapacity=0;for(const pageSize of [23,42,42]){physicalCapacity+=pageSize;if(requiredRows<=physicalCapacity)break;}while(requiredRows>physicalCapacity)physicalCapacity+=42;$('mini-topic').textContent=$('topic').value.trim().toUpperCase()||'TEMA DO DDS';$('summary-sector').textContent=unitLabel(unit);$('summary-unit').textContent='GALEÃO';$('mini-unit').textContent=unit;document.querySelectorAll('.mini-participant-unit').forEach(el=>el.textContent=unit);$('summary-shift').textContent=shift?(shift==='TODOS'?'Todos os turnos':shiftLabel(shift)):'Aguardando seleção';$('summary-count').textContent=`${results.length} colaborador${results.length===1?'':'es'} encontrado${results.length===1?'':'s'}`;$('capacity-label').textContent=`${requiredRows} linhas (${results.length} nomes + 5 vazias)`;$('capacity-fill').style.width=`${Math.min(requiredRows/physicalCapacity*100,100)}%`;
+ const unitKey=norm(unit);const fixedSupervisors={'UNITED':['WILKER MARIA'],'TECA':['PEDRO PAULO'],'GATE GOURMET':['MARCIA FASUTINO']};const supervisors=unitKey==='GIG'?(shift?(shift==='TODOS'?Array.from(new Set(Object.values(state.supervisors).flat())):(state.supervisors[shift]||[])):[]):(fixedSupervisors[unitKey]||[]);$('supervisor-value').textContent=supervisors.length?supervisors.join(' / '):(unitKey==='GIG'?'Selecione um turno para consultar':'Selecione uma unidade');
+ const callout=$('roster-callout');if(state.employees.length===0){callout.classList.remove('hidden');callout.innerHTML='<span>!</span><div><b>Planilha de colaboradores ainda não carregada</b><p>Importe a lista na área “Colaboradores” para preencher os nomes automaticamente.</p><button type="button" class="text-button" data-goto="colaboradores">Importar agora →</button></div>';callout.querySelector('[data-goto]').addEventListener('click',()=>navigate('colaboradores'))}else if(!state.employees.some(e=>(shift==='TODOS'||e.shift===shift)&&norm(e.work_site||'')===norm(unit))){callout.classList.remove('hidden');callout.innerHTML='<span>!</span><div><b>Nenhum colaborador cadastrado para este turno e unidade</b><p>Abra Colaboradores e confira o turno e a unidade de cada pessoa. O DDS não incluirá colaboradores de outra unidade ou de outro turno.</p></div>'}else if(shift&&results.length===0){callout.classList.remove('hidden');callout.innerHTML='<span>!</span><div><b>Nenhum colaborador encontrado para a seleção</b><p>Confira o turno e a unidade escolhidos. O DDS não incluirá nomes de outra seleção.</p></div>'}else{callout.classList.add('hidden')}
 }
 function updateShiftPickerLabel(){
- const shift=$('shift').value,all=$('use-all-shift-employees').checked;
- const names={DIURNO:'Manhã (diurno)',VESPERTINO:'Tarde (vespertino)',NOTURNO:'Madrugada (noturno)'};
+ const shift=$('shift').value;
+ const names={DIURNO:'Manhã (diurno)',VESPERTINO:'Tarde (vespertino)',NOTURNO:'Madrugada (noturno)',TODOS:'TODOS OS COLABORADORES'};
  const label=$('shift-picker-label');
- if(label)label.innerHTML=shift?'<strong>'+esc(names[shift]||shift)+'</strong><small>'+(all?'Todos os colaboradores':'Seleção manual')+'</small>':'<strong>Selecione o turno</strong><small>Obrigatório</small>';
+ if(label)label.innerHTML=shift?'<strong>'+esc(names[shift]||shift)+'</strong>':'<strong>Selecione o turno</strong>';
  document.querySelectorAll('[data-shift-option]').forEach(b=>{const selected=b.dataset.shiftOption===shift;b.classList.toggle('is-selected',selected);b.setAttribute('aria-selected',String(selected))});
- const allButton=$('shift-use-all-option'),manualButton=$('shift-manual-option');
- if(allButton){allButton.classList.toggle('is-selected',all);allButton.setAttribute('aria-pressed',String(all))}
- if(manualButton){manualButton.classList.toggle('is-selected',!all);manualButton.setAttribute('aria-pressed',String(!all))}
 }
 function closeShiftPicker(){const menu=$('shift-picker-menu'),trigger=$('shift-picker-trigger');menu?.classList.add('hidden');trigger?.setAttribute('aria-expanded','false')}
 function openShiftPicker(){const menu=$('shift-picker-menu'),trigger=$('shift-picker-trigger');menu?.classList.remove('hidden');trigger?.setAttribute('aria-expanded','true')}
@@ -118,23 +115,12 @@ document.querySelectorAll('[data-shift-option]').forEach(button=>button.addEvent
  clearError();updateShiftPickerLabel();closeShiftPicker();
  $('shift').dispatchEvent(new Event('change',{bubbles:true}));
 }));
-function selectParticipantMode(useAll){
- if(!$('shift').value){
-  showError('Selecione primeiro Manhã, Tarde ou Madrugada. Depois escolha neste mesmo menu se deseja incluir todos os colaboradores do turno.');
-  openShiftPicker();$('shift-picker-trigger').focus();return;
- }
- clearError();$('use-all-shift-employees').checked=useAll;
- renderEmployeeSelection();updateShiftPickerLabel();refreshSummary();closeShiftPicker();
-}
-$('shift-use-all-option').addEventListener('click',()=>selectParticipantMode(true));
-$('shift-manual-option').addEventListener('click',()=>selectParticipantMode(false));
 document.addEventListener('click',event=>{if(!$('shift-picker')?.contains(event.target))closeShiftPicker()});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closeShiftPicker()});
 $('select-all-visible-employees').addEventListener('click',()=>{document.querySelectorAll('input[name="selected-employee"]').forEach(input=>input.checked=true);refreshSummary()});
 ['topic','dds-date','duration'].forEach(id=>$(id).addEventListener('input',refreshSummary));
 $('shift').addEventListener('change',()=>{updateShiftPickerLabel();renderEmployeeSelection();refreshSummary()});
 $('operational-unit').addEventListener('change',()=>{renderEmployeeSelection();refreshSummary()});
-$('use-all-shift-employees').addEventListener('change',()=>{updateShiftPickerLabel();renderEmployeeSelection();refreshSummary()});
 ['shift','operational-unit','dds-date','duration'].forEach(id=>$(id).addEventListener('change',refreshSummary));
 updateShiftPickerLabel();
 $('dds-date').value='';
@@ -328,12 +314,12 @@ $('dds-form').addEventListener('submit',ev=>{
  const people=filteredEmployees();
  if(state.employees.length===0){showError('Importe a planilha de colaboradores antes de emitir o DDS. Isso evita gerar uma lista de presença incompleta.');return}
  if(!people.length){showError('Nenhum colaborador encontrado para a seleção. Confira turno, unidade e dados importados.');return}
- pendingGeneratePayload={topic,shift,work_site:$('operational-unit').value,unit:$('operational-unit').value,sector:'LIMPEZA',date:$('dds-date').value,duration:$('duration').value,content,employee_ids:$('use-all-shift-employees').checked?[]:people.map(person=>String(person.id))};
+ pendingGeneratePayload={topic,shift,work_site:$('operational-unit').value,unit:$('operational-unit').value,sector:'LIMPEZA',date:$('dds-date').value,duration:$('duration').value,content,employee_ids:people.map(person=>String(person.id))};
  const supervisors=state.supervisors[shift]||[];
  $('preflight-topic').textContent=topic;
  const rawDate=$('dds-date').value;
  $('preflight-date').textContent=`${rawDate?new Date(`${rawDate}T12:00:00`).toLocaleDateString('pt-BR'):'Data não informada'} · ${$('duration').value}`;
- $('preflight-shift').textContent=`${shiftLabel(shift)} (${shift})`;
+ $('preflight-shift').textContent=shift==='TODOS'?'Todos os turnos':`${shiftLabel(shift)} (${shift})`;
  $('preflight-sector').textContent=unitLabel($('operational-unit').value);$('preflight-unit').textContent='GALEÃO';
  $('preflight-supervisors').textContent=supervisors.length?supervisors.join(' e '):'Responsável não identificado';
  $('preflight-count').textContent=`${people.length} participante${people.length===1?'':'s'}`;
