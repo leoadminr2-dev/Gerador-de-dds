@@ -102,3 +102,53 @@
 .page-banner{display:block;width:100%;height:100%;max-height:none;object-fit:contain;object-position:center}
 @media(max-width:990px){.page-banner-wrap{height:148px}}
 @media(max-width:720px){.page-banner-wrap{height:132px;margin:8px auto 3px;border-radius:7px}}
+
+
+/* Revisão de apresentação para diretoria — título principal e navegação responsiva */
+.brand-block,
+.version-label,
+.brand-lockup,
+.brand-name,
+.brand-dds { display: none !important; }
+.sidebar { padding-top: 22px; }
+.side-nav { padding-top: 8px; }
+.page-banner-wrap {
+  width: 100%;
+  height: auto;
+  min-height: 126px;
+  margin: 0 0 22px;
+  padding: 24px 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(120deg, #0e2d50 0%, #123d76 62%, #1b5797 100%);
+  line-height: 1.1;
+  box-shadow: 0 8px 22px rgba(18, 61, 118, .12);
+}
+.page-banner-title {
+  width: 100%;
+  margin: 0;
+  color: #fff;
+  text-align: center;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-size: clamp(30px, 4vw, 54px);
+  line-height: 1.08;
+  font-weight: 900;
+  letter-spacing: -1.4px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .app-shell { grid-template-columns: 68px minmax(0, 1fr); }
+  .sidebar { min-width: 0; height: auto; min-height: 100vh; padding: 14px 5px; position: relative; top: auto; }
+  .side-nav { padding-top: 0; gap: 8px; }
+  .nav-item { justify-content: center; padding: 10px 4px; }
+  .nav-item > span:last-child { display: none !important; }
+  .nav-icon { width: 40px; height: 40px; }
+  .sidebar-footer { display: none; }
+  .main-area { min-width: 0; padding: 0 11px 18px; }
+  .topbar { height: 44px; }
+  .page-banner-wrap { min-height: 88px; padding: 18px 8px; margin-bottom: 16px; border-radius: 9px; }
+  .page-banner-title { font-size: clamp(25px, 7.5vw, 39px); letter-spacing: -.8px; }
+}
