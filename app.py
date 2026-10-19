@@ -41,11 +41,11 @@ SITE_ALIASES = {
     'TPS 2 TERMINAL': 'GIG', 'TPS-2 TERMINAL': 'GIG', 'TERMINAL TPS2': 'GIG',
 }
 SHIFTS = ['DIURNO', 'VESPERTINO', 'NOTURNO']
-UNIT_SUPERVISORS = {'UNITED': 'WILKER MARIA', 'GATE GOURMET': 'Márcia Faustino', 'TECA': 'Pedro Paulo', 'GIG': 'A confirmar'}
+UNIT_SUPERVISORS = {'UNITED': 'WILKER MARIA', 'GATE GOURMET': 'MARCIA FASUTINO', 'TECA': 'PEDRO PAULO'}
 SUPERVISORS = {
-    'NOTURNO': ['Maria do Socorro'],
+    'NOTURNO': ['MARIA DO SOCORRO'],
     'DIURNO': ['ORLANDO BARBOSA', 'EVELYN MONTOVANI'],
-    'VESPERTINO': ['Kayo Lessa', 'Bruna Fraga'],
+    'VESPERTINO': ['VICTOR HUGO', 'BRUNA FRAGA', 'KAYO LESSA'],
 }
 SHIFT_ALIASES = {
     'NOTURNO':'NOTURNO','NOITE':'NOTURNO','MADRUGADA':'NOTURNO','TURNO NOTURNO':'NOTURNO',
@@ -1284,8 +1284,11 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
         display_date=''
     if not content:
         content=f'POR QUE É IMPORTANTE?\nO tema “{topic}” merece atenção porque atitudes preventivas reduzem riscos, protegem as pessoas e ajudam a manter a qualidade do serviço.\n\nOBJETIVO\nReforçar práticas seguras, reconhecer situações de risco e orientar a equipe sobre como agir corretamente no trabalho.\n\nORIENTAÇÕES PRÁTICAS\nSiga os procedimentos da empresa, utilize os recursos de proteção indicados, mantenha a área organizada e comunique imediatamente condições inseguras à liderança.\n\nMENSAGEM FINAL\nSegurança é responsabilidade de todos. Pare, avalie o risco e escolha sempre a atitude mais segura.'
-    # UNITED has a unit-specific responsible, independent of the selected shift.
-    supervisor_names=[UNIT_SUPERVISORS[work_site]] if work_site == 'UNITED' else SUPERVISORS[shift]
+    # Responsible persons are determined by the selected work site. Only GIG varies by shift.
+    if work_site == 'GIG':
+        supervisor_names = SUPERVISORS[shift]
+    else:
+        supervisor_names = [UNIT_SUPERVISORS[work_site]]
     same_shift=[e for e in employees if e.get('shift')==shift]
     def employee_site(employee):
         return (canonical_site(employee.get('work_site'))
