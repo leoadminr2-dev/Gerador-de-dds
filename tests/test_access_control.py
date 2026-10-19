@@ -87,6 +87,14 @@ class AccountAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302, response.get_data(as_text=True))
         return token
 
+    def test_account_api_is_hidden_when_feature_is_disabled(self):
+        with patch.dict(os.environ, {"DDS_ACCOUNT_AUTH": "0"}):
+            local_app = Flask("account-access-disabled-test")
+            local_app.testing = True
+            install_account_access(local_app, Path(self.temp.name) / "disabled")
+            response = local_app.test_client().get("/api/account/me")
+        self.assertEqual(response.status_code, 404)
+
     def test_unauthenticated_api_is_blocked(self):
         response = self.tester.get("/api/protected")
         self.assertEqual(response.status_code, 401)
