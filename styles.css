@@ -54,3 +54,29 @@
 .about-hero h2.about-product-name{font-size:clamp(28px,3vw,42px);font-weight:900;letter-spacing:-1.2px;color:#123d76;text-transform:uppercase;margin:8px 0 12px}
 .about-story a{color:#1b5fa7;font-weight:700;overflow-wrap:anywhere}
 @media(max-width:720px){.page-intro h1.product-title{font-size:28px}.about-hero h2.about-product-name{font-size:27px}}
+
+
+/* Correção de rolagem dos modais — emissão em massa e telas longas.
+   Mantém os botões de ação acessíveis em janelas baixas e no celular. */
+.modal-backdrop:not(.hidden){
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  align-items:flex-start;
+  padding:16px 12px;
+}
+.modal-backdrop:not(.hidden) .pdf-modal-card{
+  max-height:calc(100vh - 32px);
+  max-height:calc(100dvh - 32px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  flex:0 0 auto;
+  margin-top:auto;
+  margin-bottom:auto;
+}
+@media(max-width:640px){
+  .modal-backdrop:not(.hidden){padding:8px;}
+  .modal-backdrop:not(.hidden) .pdf-modal-card{
+    max-height:calc(100vh - 16px);
+    max-height:calc(100dvh - 16px);
+  }
+}
