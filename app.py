@@ -1396,7 +1396,7 @@ def index():
 
 @app.get('/api/health')
 def health():
-    return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.2.2-web-ready' if HOSTED_MODE else '1.2.2-local'})
+    return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.2.13-web-ready' if HOSTED_MODE else '1.2.13-local'})
 
 @app.get('/api/state')
 def state_endpoint():
@@ -1412,7 +1412,7 @@ def backup_payload() -> dict:
     return {
         'format': 'gerador-dds-backup',
         'backup_version': 1,
-        'app_version': '1.2.2',
+        'app_version': '1.2.13',
         'exported_at': datetime.now().isoformat(timespec='seconds'),
         'state': state,
         'custom_topics': custom_topics,
