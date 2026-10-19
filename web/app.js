@@ -102,7 +102,8 @@ function refreshSummary(){const shift=$('shift').value;const unit=$('operational
 }
 $('use-all-shift-employees').addEventListener('change',()=>{renderEmployeeSelection();refreshSummary()});
 $('select-all-visible-employees').addEventListener('click',()=>{document.querySelectorAll('input[name="selected-employee"]').forEach(input=>input.checked=true);refreshSummary()});
-['topic','shift','operational-unit','dds-date','duration'].forEach(id=>$(id).addEventListener('input',()=>{renderEmployeeSelection();refreshSummary()}));
+['topic','dds-date','duration'].forEach(id=>$(id).addEventListener('input',refreshSummary));
+['shift','operational-unit'].forEach(id=>$(id).addEventListener('change',()=>{renderEmployeeSelection();refreshSummary()}));
 ['shift','operational-unit','dds-date','duration'].forEach(id=>$(id).addEventListener('change',refreshSummary));
 $('dds-date').value='';
 $('content').addEventListener('input',()=>{$('char-count').textContent=`${$('content').value.length} / 2600`;if($('content').value.trim()){$('content-status').classList.add('ready');$('content-status').innerHTML='<span class="status-dot"></span> Conteúdo preenchido'}else{$('content-status').classList.remove('ready');$('content-status').innerHTML='<span class="status-dot"></span> Aguardando tema'}analyzeCriticalContent()});
@@ -442,7 +443,7 @@ async function loadState(showToast=false){
     }
    }
   }
-  Object.assign(state,r);renderStorageStatus(r);refreshSummary();renderRoster();renderHistory();renderConfig();
+  Object.assign(state,r);renderStorageStatus(r);renderEmployeeSelection();refreshSummary();renderRoster();renderHistory();renderConfig();
   if(state.employees.length)void refreshBrowserBackup();
   if(showToast)toast('Dados atualizados.');
  }catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}
