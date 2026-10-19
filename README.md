@@ -36,7 +36,7 @@ Os títulos foram organizados com referência temática às Normas Regulamentado
 Os DDS são rascunhos de orientação geral: a liderança deve conferir os procedimentos locais, rótulos/FDS, avaliação de riscos e regras operacionais antes de utilizar ou imprimir. A biblioteca inicial é recriada pelo aplicativo após a inicialização; temas cadastrados manualmente continuam sujeitos à persistência do armazenamento configurado na hospedagem.
 
 ## Hospedagem web (1.2.2)
-O pacote inclui `render.yaml`, `Procfile` e `DEPLOY_HOSTING.md` para preparar uma publicação protegida. A hospedagem ainda precisa ser criada na conta do responsável; este ZIP, sozinho, não publica o sistema. A configuração proposta utiliza autenticação administrativa obrigatória e armazenamento persistente. Revise os custos do provedor antes de ativar o serviço.
+O serviço web do Gerador de DDS está configurado no Render a partir deste repositório. A aplicação usa autenticação administrativa obrigatória em modo hospedado, verificação de saúde em `/healthz` e armazenamento persistente montado em `/var/data`. A variável `DDS_ADMIN_PASSWORD` deve permanecer definida como segredo no painel do Render e ter pelo menos 16 caracteres; não coloque credenciais no repositório. Antes de uso operacional, confirme a implantação atual, o acesso autorizado, a persistência dos dados e os custos do provedor. A ferramenta continua sujeita à validação da liderança, TI e Segurança/QSSMA e não deve ser apresentada como homologada sem aprovação formal.
 
 A ação de pesquisa tenta consultar novamente MTE/Fundacentro e, quando pertinente, Anvisa. Se não conseguir obter fontes atuais, informa erro e não retorna conteúdo offline como se estivesse validado naquela sessão.
 
