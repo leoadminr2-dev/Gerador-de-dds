@@ -271,7 +271,7 @@ def _notification_worker(db_path: Path) -> None:
 
 def _start_worker(app, db_path: Path) -> None:
     global _thread_started
-    if not app.config.get("DDS_ACCOUNT_AUTH_ENABLED"):
+    if not app.config.get("DDS_ACCOUNT_AUTH_ENABLED") or app.testing or os.environ.get("DDS_DISABLE_NOTIFICATION_THREAD") == "1":
         return
     with _thread_lock:
         if _thread_started:
@@ -391,7 +391,7 @@ def install_account_access(app, data_dir: Path) -> None:
             or path.startswith("/register/")
             or path.startswith("/reset/")
             or path.startswith("/static/")
-            or path in {"/", "/index.html", "/app.js", "/styles.css", "/favicon.ico"}
+            or path in {"/", "/app.js", "/styles.css", "/favicon.ico"}
             and request.method == "GET"
         )
         if is_public:
