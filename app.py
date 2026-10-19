@@ -1329,11 +1329,11 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
         row_top = supervisor_top + (supervisor_index - 1) * supervisor_row_height
         row_bottom = row_top + supervisor_row_height
         row_baseline = (row_top + row_bottom) / 2 + 2.6
-        # Number occupies its own narrow cell; the name is centered in the remaining cell.
-        centered_text(p, f'{supervisor_index}.', supervisor_left, supervisor_left + 22.0,
-                      row_baseline, font='helv', size=7.2, min_size=6.0, writer=writers[0])
-        centered_text(p, supervisor_name, supervisor_left + 23.0, supervisor_right,
-                      row_baseline, font='helv', size=7.2, min_size=6.0, writer=writers[0])
+        # Keep the sequence number inside the same responsible field, immediately left of the name.
+        # Render number and name as one text string so there is no separate number cell.
+        centered_text(p, f'{supervisor_index:02d}. {supervisor_name}',
+                      supervisor_left, supervisor_right, row_baseline,
+                      font='helv', size=7.2, min_size=6.0, writer=writers[0])
 
     # Populate the exact number of selected-shift rows plus five extraordinary blank slots.
     columns=layout['columns']
