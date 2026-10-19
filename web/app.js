@@ -20,7 +20,7 @@ let topicSearchTimer=null;
 function resetTopicEditor(){
  $('topic-create-form')?.reset();
  if($('editing-topic-id'))$('editing-topic-id').value='';
- if($('save-topic-btn'))$('save-topic-btn').textContent='Salvar tema offline →';
+ if($('save-topic-btn'))$('save-topic-btn').textContent='Salvar tema →';
  $('cancel-topic-edit')?.classList.add('hidden');
 }
 function startEditTopic(id){
@@ -29,7 +29,7 @@ function startEditTopic(id){
  $('new-topic-objective').value=t.objective;$('new-topic-content').value=t.content;
  $('save-topic-btn').textContent='Salvar alterações do tema →';$('cancel-topic-edit').classList.remove('hidden');
  $('topic-create-form').scrollIntoView({behavior:'smooth',block:'start'});$('new-topic-title').focus();
- toast('Tema aberto para edição. As mudanças serão salvas na biblioteca local.');
+ toast('Tema aberto para edição. As mudanças serão salvas na biblioteca de temas.');
 }
 
 async function loadTopics(){
@@ -39,19 +39,19 @@ async function loadTopics(){
   state.topics=data.topics||[];state.topicCategories=data.categories||[];
   const cat=$('topic-category');if(cat){const previous=cat.value;cat.innerHTML='<option value="TODAS">Todas as categorias</option>'+state.topicCategories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');cat.value=state.topicCategories.includes(previous)?previous:'TODAS'}
   const datalist=$('topic-options');if(datalist)datalist.innerHTML=state.topics.map(t=>`<option value="${esc(t.title)}"></option>`).join('');
-  const count=$('topic-count');if(count)count.textContent=`${data.count} tema${data.count===1?'':'s'} disponível${data.count===1?'':'eis'} neste computador`;
+  const count=$('topic-count');if(count)count.textContent=`${data.count} tema${data.count===1?'':'s'} disponível${data.count===1?'':'eis'} neste ambiente`;
   const list=$('topic-library');if(list)list.innerHTML=state.topics.length?state.topics.map(t=>`<article class="topic-card"><div class="topic-card-top"><span class="topic-category">${esc(t.category)}</span><span class="topic-source">${t.source==='biblioteca inicial'?'Biblioteca inicial':'Tema cadastrado'}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.objective)}</p><div class="topic-card-actions"><button class="button primary small" data-use-topic="${t.id}">Usar neste DDS</button><button class="button secondary small" data-edit-topic="${t.id}">Editar conteúdo</button>${t.source==='cadastrado pelo usuário'?`<button class="button secondary small" data-delete-topic="${t.id}">Excluir</button>`:''}</div></article>`).join(''):'<div class="empty-state">Nenhum tema encontrado. Ajuste a busca ou cadastre um novo tema.</div>';
   list?.querySelectorAll('[data-use-topic]').forEach(b=>b.addEventListener('click',()=>useTopic(Number(b.dataset.useTopic))));
   list?.querySelectorAll('[data-edit-topic]').forEach(b=>b.addEventListener('click',()=>startEditTopic(Number(b.dataset.editTopic))));
   list?.querySelectorAll('[data-delete-topic]').forEach(b=>b.addEventListener('click',()=>removeTopic(Number(b.dataset.deleteTopic))));
- }catch(err){const list=$('topic-library');if(list)list.innerHTML=`<div class="empty-state">Não foi possível abrir o banco local: ${esc(err.message)}</div>`;toast(err.message,'error')}
+ }catch(err){const list=$('topic-library');if(list)list.innerHTML=`<div class="empty-state">Não foi possível abrir o banco de temas: ${esc(err.message)}</div>`;toast(err.message,'error')}
 }
-function useTopic(id){const t=state.topics.find(x=>x.id===id);if(!t)return;$('topic').value=t.title;$('content').value=t.content;$('content').dispatchEvent(new Event('input'));refreshSummary();navigate('novo');toast('Tema e conteúdo carregados do banco offline. Revise antes de gerar o PDF.')}
-async function removeTopic(id){if(!confirm('Excluir este tema cadastrado? Essa ação não pode ser desfeita.'))return;try{await api(`/api/topics/${id}`,{method:'DELETE'});await loadTopics();toast('Tema removido da biblioteca local.')}catch(err){toast(err.message,'error')}}
+function useTopic(id){const t=state.topics.find(x=>x.id===id);if(!t)return;$('topic').value=t.title;$('content').value=t.content;$('content').dispatchEvent(new Event('input'));refreshSummary();navigate('novo');toast('Tema e conteúdo carregados do biblioteca de temas. Revise antes de gerar o PDF.')}
+async function removeTopic(id){if(!confirm('Excluir este tema cadastrado? Essa ação não pode ser desfeita.'))return;try{await api(`/api/topics/${id}`,{method:'DELETE'});await loadTopics();toast('Tema removido da biblioteca de temas.')}catch(err){toast(err.message,'error')}}
 $('topic-search')?.addEventListener('input',()=>{clearTimeout(topicSearchTimer);topicSearchTimer=setTimeout(loadTopics,180)});
 $('topic-category')?.addEventListener('change',loadTopics);
 $('browse-topics')?.addEventListener('click',()=>navigate('temas'));
-$('topic')?.addEventListener('change',()=>{const exact=state.topics.find(t=>norm(t.title)===norm($('topic').value));if(exact){$('content').value=exact.content;$('content').dispatchEvent(new Event('input'));toast('Conteúdo carregado da biblioteca offline.')}else analyzeCriticalContent()});
+$('topic')?.addEventListener('change',()=>{const exact=state.topics.find(t=>norm(t.title)===norm($('topic').value));if(exact){$('content').value=exact.content;$('content').dispatchEvent(new Event('input'));toast('Conteúdo carregado da biblioteca de temas.')}else analyzeCriticalContent()});
 $('topic-create-form')?.addEventListener('submit',async e=>{e.preventDefault();const id=$('editing-topic-id').value;const data={title:$('new-topic-title').value,category:$('new-topic-category').value,objective:$('new-topic-objective').value,content:$('new-topic-content').value};try{const r=await api(id?`/api/topics/${encodeURIComponent(id)}`:'/api/topics',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});resetTopicEditor();await loadTopics();toast(id?`Tema “${r.topic.title}” atualizado na biblioteca local.`:`Tema “${r.topic.title}” salvo no banco offline.`)}catch(err){toast(err.message,'error')}});
 $('cancel-topic-edit')?.addEventListener('click',resetTopicEditor);
 
@@ -293,11 +293,11 @@ $('confirm-generate-btn').addEventListener('click',async()=>{
 // Roster import and manual records
 $('xlsx-file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(file)await importRoster(file);e.target.value=''});
 $('drop-zone').addEventListener('dragover',e=>{e.preventDefault();$('drop-zone').classList.add('dragover')});$('drop-zone').addEventListener('dragleave',()=> $('drop-zone').classList.remove('dragover'));$('drop-zone').addEventListener('drop',async e=>{e.preventDefault();$('drop-zone').classList.remove('dragover');const file=e.dataTransfer.files?.[0];if(file)await importRoster(file)});
-async function importRoster(file){if(state.employees.length&&!confirm(`A relação atual contém ${state.employees.length} colaboradores. A nova planilha substituirá a relação atual; uma cópia de segurança será salva neste computador. Deseja continuar?`))return;const result=$('import-result');result.classList.remove('hidden','error');result.textContent='Lendo a planilha e identificando os turnos…';const fd=new FormData();fd.append('file',file);try{const r=await api('/api/import-roster',{method:'POST',body:fd});await loadState(false);const shifts=Object.entries(r.by_shift).map(([s,n])=>`${shiftLabel(s)}: ${n}`).join(' · ');result.innerHTML=`<b>Importação concluída.</b> ${r.count} colaboradores importados. Unidades válidas: GIG, TECA, UNITED e GATE GOURMET. Área/Setor: LIMPEZA. ${esc(shifts)}.${r.unknown_shift?` ${r.unknown_shift} sem turno identificado.`:''}${r.missing_site?` ${r.missing_site} sem unidade identificado; revise na lista de colaboradores.`:''}${r.work_sites?.length?` Locais encontrados: ${esc(r.work_sites.join(', '))}.`:''}${r.notes.length?`<br>${esc(r.notes.join(' '))}`:''}`;toast(`${r.count} colaboradores importados com sucesso.`);renderRoster()}catch(err){result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}finally{result.classList.remove('hidden')}}
+async function importRoster(file){if(state.employees.length&&!confirm(`A relação atual contém ${state.employees.length} colaboradores. A nova planilha substituirá a relação atual; uma cópia de segurança será preparada antes da troca. Deseja continuar?`))return;const result=$('import-result');result.classList.remove('hidden','error');result.textContent='Lendo a planilha e identificando os turnos…';const fd=new FormData();fd.append('file',file);try{const r=await api('/api/import-roster',{method:'POST',body:fd});await loadState(false);const shifts=Object.entries(r.by_shift).map(([s,n])=>`${shiftLabel(s)}: ${n}`).join(' · ');result.innerHTML=`<b>Importação concluída.</b> ${r.count} colaboradores importados. Unidades válidas: GIG, TECA, UNITED e GATE GOURMET. Área/Setor: LIMPEZA. ${esc(shifts)}.${r.unknown_shift?` ${r.unknown_shift} sem turno identificado.`:''}${r.missing_site?` ${r.missing_site} sem unidade identificado; revise na lista de colaboradores.`:''}${r.work_sites?.length?` Locais encontrados: ${esc(r.work_sites.join(', '))}.`:''}${r.notes.length?`<br>${esc(r.notes.join(' '))}`:''}`;toast(`${r.count} colaboradores importados com sucesso.`);renderRoster()}catch(err){result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}finally{result.classList.remove('hidden')}}
 $('add-employee-toggle').addEventListener('click',()=>$('add-employee-form').classList.toggle('hidden'));
 $('add-employee-form').addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/employees',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('employee-name').value,shift:$('employee-shift').value,area:'LIMPEZA',sector:'LIMPEZA',work_site:$('employee-unit').value,unit:$('employee-unit').value,operational_unit:$('employee-unit').value})});$('add-employee-form').reset();$('employee-area').value='LIMPEZA';$('employee-sector').value='LIMPEZA';$('employee-unit').value='';$('add-employee-form').classList.add('hidden');await loadState(false);toast('Colaborador cadastrado na unidade selecionada.');}catch(err){toast(err.message,'error')}});
 $('roster-search').addEventListener('input',renderRoster);$('roster-shift-filter').addEventListener('change',renderRoster);$('roster-sector-filter').addEventListener('change',renderRoster);$('roster-unit-filter').addEventListener('change',renderRoster);
-async function deleteEmployee(id){if(!confirm('Remover este colaborador da relação local?'))return;try{await api(`/api/employees/${encodeURIComponent(id)}`,{method:'DELETE'});state.employees=state.employees.filter(e=>e.id!==id);renderRoster();refreshSummary();toast('Colaborador removido.')}catch(err){toast(err.message,'error')}}
+async function deleteEmployee(id){if(!confirm('Remover este colaborador da relação de colaboradores?'))return;try{await api(`/api/employees/${encodeURIComponent(id)}`,{method:'DELETE'});state.employees=state.employees.filter(e=>e.id!==id);renderRoster();refreshSummary();toast('Colaborador removido.')}catch(err){toast(err.message,'error')}}
 function renderRoster(){
  const all=state.employees;
  const sectorSelect=$('roster-sector-filter'),priorSector=sectorSelect.value;
@@ -350,7 +350,7 @@ $('backup-file').addEventListener('change',async e=>{
  const result=$('backup-result');
  try{const backup=JSON.parse(await file.text());if(backup.format!=='gerador-dds-backup')throw new Error('Este arquivo não parece ser uma cópia de segurança do Gerador de DDS.');
   const employeeCount=Array.isArray(backup.state?.employees)?backup.state.employees.length:0;
-  if(!confirm(`ATENÇÃO: a restauração substituirá os dados atuais por uma cópia com ${employeeCount} colaboradores. Os dados atuais terão uma cópia de segurança local antes da troca. Continuar?`))return;
+  if(!confirm(`ATENÇÃO: a restauração substituirá os dados atuais por uma cópia com ${employeeCount} colaboradores. Os dados atuais terão uma cópia de segurança antes da troca. Continuar?`))return;
   result.classList.remove('hidden','error');result.textContent='Validando e restaurando a cópia de segurança…';
   const response=await api('/api/restore-backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)});
   await loadState(false);await loadTopics();renderRoster();result.classList.remove('error');result.classList.remove('hidden');result.textContent=`Restauração concluída: ${response.employees} colaboradores, ${response.history} registros de histórico e ${response.custom_topics} temas personalizados. ${response.message}`;toast('Cópia de segurança restaurada com sucesso.')
