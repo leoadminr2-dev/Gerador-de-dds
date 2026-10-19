@@ -374,7 +374,7 @@ def install_account_access(app, data_dir: Path) -> None:
 
     def before_request_account_gate():
         if not enabled:
-            if request.path == "/admin" or request.path.startswith(("/api/admin/", "/register/", "/reset/")) or request.path in {"/login", "/logout", "/trial-expired"}:
+            if request.path == "/admin" or request.path.startswith(("/api/admin/", "/api/account/", "/register/", "/reset/")) or request.path in {"/login", "/logout", "/trial-expired"}:
                 abort(404)
             return None
 
