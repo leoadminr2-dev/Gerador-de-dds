@@ -1268,9 +1268,21 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     centered_text(p,turn_display,100.5,206.5,341.8,font='helv',size=7.8,min_size=6.0)
     centered_text(p,duration,402.8,448.6,341.8,font='helv',size=8.0,min_size=6.0)
     centered_text(p,display_date,504.0,568.0,341.8,font='helv',size=8.0,min_size=6.0)
-    # Only the responsible people for the selected shift are printed. Other columns remain blank for manual entry.
-    supervisor_text=' e '.join(supervisor_names)
-    centered_text(p,supervisor_text,51.7,270.0,378.4,font='helv',size=7.7,min_size=6.2)
+    # List each responsible person separately, numbered, within the existing responsible/instructor field.
+    # Keep the institutional form unchanged and prevent names from being merged into one text line.
+    supervisor_left, supervisor_right = 51.7, 270.0
+    supervisor_top, supervisor_bottom = 357.0, 397.0
+    supervisor_count = max(1, len(supervisor_names))
+    supervisor_row_height = (supervisor_bottom - supervisor_top) / supervisor_count
+    for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
+        row_top = supervisor_top + (supervisor_index - 1) * supervisor_row_height
+        row_bottom = row_top + supervisor_row_height
+        row_baseline = (row_top + row_bottom) / 2 + 2.6
+        # Number occupies its own narrow cell; the name is centered in the remaining cell.
+        centered_text(p, f'{supervisor_index}.', supervisor_left, supervisor_left + 22.0,
+                      row_baseline, font='helv', size=7.2, min_size=6.0)
+        centered_text(p, supervisor_name, supervisor_left + 23.0, supervisor_right,
+                      row_baseline, font='helv', size=7.2, min_size=6.0)
 
     # Populate the exact number of selected-shift rows plus five extraordinary blank slots.
     columns=layout['columns']
