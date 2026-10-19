@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#123d76" />
   <title>Gerador de DDS | Segurança e Rotina Operacional</title>
   <meta name="description" content="Plataforma para preparar, revisar e gerar Diálogos Diários de Segurança com formulário institucional e conferência antes da emissão." />
-  <link rel="stylesheet" href="/styles.css?v=1.2.11" />
+  <link rel="stylesheet" href="/styles.css?v=1.2.12" />
 </head>
 <body>
   <div class="app-shell">
@@ -20,11 +20,10 @@
         <button class="nav-item" data-page="configuracoes" aria-label="Configurações"><span class="nav-icon">⚙</span><span><b>Configurações</b><small>Turnos e responsáveis</small></span></button>
         <button class="nav-item" data-page="sobre" aria-label="Sobre o aplicativo"><span class="nav-icon">ⓘ</span><span><b>Sobre o aplicativo</b><small>Criação e suporte</small></span></button>
         <button type="button" class="nav-item bulk-sidebar-action" id="bulk-generate-sidebar" title="Gerar DDS em massa" aria-label="Gerar DDS em massa"><span class="nav-icon">▦</span><span><b>Gerar DDS em massa</b><small>Emissão em lote</small></span></button>
+        <div class="nav-item sidebar-status" role="status" aria-label="Dados da aplicação">
+          <span class="nav-icon">✓</span><span><b>Dados da aplicação</b><small>Armazenados no ambiente configurado.</small></span>
+        </div>
       </nav>
-      <div class="sidebar-footer">
-        <div class="shield-icon">✓</div>
-        <div><b>Dados da aplicação</b><small>Armazenados no ambiente configurado.</small></div>
-      </div>
     </aside>
 
     <main class="main-area">
@@ -158,6 +157,6 @@
 
   <div class="modal-backdrop hidden" id="pdf-modal" role="dialog" aria-modal="true" aria-labelledby="pdf-modal-title"><div class="pdf-modal-card"><div class="pdf-modal-heading"><div><span class="eyebrow">DOCUMENTO GERADO</span><h2 id="pdf-modal-title">DDS pronto para conferência</h2><p id="pdf-modal-summary">Revise o arquivo antes de imprimir.</p></div><button type="button" class="icon-button" id="close-pdf-modal" aria-label="Fechar">×</button></div><div class="pdf-result-card"><div class="pdf-icon">PDF</div><div class="pdf-result-copy"><b id="pdf-result-name">DDS.pdf</b><small id="pdf-result-meta">6 páginas · formulário institucional</small></div><a class="button secondary" id="open-pdf-link" target="_blank" rel="noopener">Abrir PDF</a></div><div class="pdf-safety-note"><span>✓</span><div><b>Confirme antes de imprimir</b><p>Confira tema, turno, nomes, responsáveis e paginação. Ao abrir o PDF, escolha a impressora HP instalada no Windows e confirme as opções de impressão.</p></div></div><div class="pdf-modal-actions"><button type="button" class="button secondary" id="close-pdf-modal-2">Voltar à edição</button><a class="button primary" id="print-pdf-link" target="_blank" rel="noopener">Abrir PDF para impressão <span>→</span></a></div></div></div>
 
-  <script src="/app.js?v=1.2.11"></script>
+  <script src="/app.js?v=1.2.12"></script>
 </body>
 </html>
