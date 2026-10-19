@@ -57,7 +57,7 @@ class ResearchTests(unittest.TestCase):
 
     def test_content_preflight_rejects_vertical_overflow(self):
         with patch.object(dds, "TEMPLATE_PATH", Path("/path/that/does/not/exist.pdf")):
-            content = "\\n".join(["RISCO E PREVENÇÃO"] * 45)
+            content = "\n".join(["RISCO E PREVENÇÃO"] * 45)
             with self.assertRaisesRegex(ValueError, "longo demais"):
                 dds.validate_content_fits_pdf(content)
 
@@ -73,7 +73,7 @@ class ResearchTests(unittest.TestCase):
                             "title": "Tema de teste com excesso de linhas",
                             "category": "Teste",
                             "objective": "Verificar o encaixe do texto",
-                            "content": "\\n".join(["RISCO E PREVENÇÃO"] * 45),
+                            "content": "\n".join(["RISCO E PREVENÇÃO"] * 45),
                         },
                     )
                 self.assertEqual(response.status_code, 400)
