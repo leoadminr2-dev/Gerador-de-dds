@@ -80,3 +80,9 @@
     max-height:calc(100dvh - 16px);
   }
 }
+
+/* Opção de todos os colaboradores integrada ao campo obrigatório Turno */
+.shift-field .employee-selection-toggle{margin-top:3px;padding:9px 10px;border:1px solid #d8e4f2;border-radius:9px;background:#f7faff}
+.shift-field .employee-selection-toggle b{font-size:12px}
+.shift-field .employee-selection-toggle small{font-weight:400}
+.employee-selection-panel{margin-top:10px}
