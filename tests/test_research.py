@@ -45,6 +45,55 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(found[0]["url"], "https://www.gov.br/fundacentro/pt-br/centrais-de-conteudo")
         self.assertIn("segurança", found[0]["snippet"])
 
+    def test_long_unbroken_token_is_wrapped_to_the_available_width(self):
+        token = "A" * 180
+        lines = dds.wrap_words(token, "helv", 8.0, 70.0)
+        self.assertGreater(len(lines), 1)
+        self.assertTrue(all(
+            dds.fitz.get_text_length(line, fontname="helv", fontsize=8.0) <= 70.0
+            for line in lines
+        ))
+        self.assertEqual("".join(lines), token)
+
+    def test_content_preflight_rejects_vertical_overflow(self):
+        with patch.object(dds, "TEMPLATE_PATH", Path("/path/that/does/not/exist.pdf")):
+            content = "\\n".join(["RISCO E PREVENÇÃO"] * 45)
+            with self.assertRaisesRegex(ValueError, "longo demais"):
+                dds.validate_content_fits_pdf(content)
+
+    def test_saving_topic_rejects_content_that_will_not_fit_pdf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old_db = dds.TOPICS_DB_PATH
+            dds.TOPICS_DB_PATH = Path(directory) / "topics.db"
+            try:
+                with patch.object(dds, "TEMPLATE_PATH", Path(directory) / "missing-template.pdf"):
+                    response = dds.app.test_client().post(
+                        "/api/topics",
+                        json={
+                            "title": "Tema de teste com excesso de linhas",
+                            "category": "Teste",
+                            "objective": "Verificar o encaixe do texto",
+                            "content": "\\n".join(["RISCO E PREVENÇÃO"] * 45),
+                        },
+                    )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("longo demais", response.get_json()["error"])
+            finally:
+                dds.TOPICS_DB_PATH = old_db
+
+    def test_topic_source_metadata_keeps_only_approved_https_references(self):
+        payload = [
+            {"title": "MTE", "url": "https://www.gov.br/trabalho-e-emprego/"},
+            {"title": "Search page", "url": "https://www.google.com/search?q=tema"},
+            {"title": "Unsafe scheme", "url": "javascript:alert(1)"},
+        ]
+        metadata = dds.topic_source_metadata(
+            "WEB-PESQUISADO:" + json.dumps(payload, ensure_ascii=False)
+        )
+        self.assertEqual(metadata["source_status"], "online-research")
+        self.assertEqual(len(metadata["sources"]), 1)
+        self.assertEqual(metadata["sources"][0]["title"], "MTE")
+
     def test_offline_draft_is_clear_and_airport_aware(self):
         with tempfile.TemporaryDirectory() as directory:
             previous_db = dds.TOPICS_DB_PATH
