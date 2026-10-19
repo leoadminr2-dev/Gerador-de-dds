@@ -45,7 +45,7 @@
               <div class="form-grid">
                 <label class="field full"><span>Tema do DDS <em>*</em></span><input id="topic" list="topic-options" maxlength="140" required placeholder="Pesquise ou digite um tema salvo" autocomplete="off" /><datalist id="topic-options"></datalist><button type="button" class="text-button" id="browse-topics">Abrir banco de temas →</button><small class="field-hint">Use um tema claro e direto. Ele aparecerá no campo “Título” do documento.</small></label>
                 <label class="field"><span>Unidade</span><select id="operational-unit"><option value="GIG" selected>GIG</option><option value="TECA">TECA</option><option value="UNITED">UNITED</option><option value="GATE GOURMET">GATE GOURMET</option></select><small class="field-hint">Selecione uma unidade. A área no documento será sempre LIMPEZA; a lista conterá somente colaboradores do turno e da unidade selecionados.</small></label>
-                <label class="field"><span>Turno <em>*</em></span><select id="shift" required><option value="">Selecione o turno</option><option value="DIURNO">Manhã (diurno)</option><option value="VESPERTINO">Tarde (vespertino)</option><option value="NOTURNO">Madrugada (noturno)</option></select></label>
+                <div class="field shift-field"><span>Turno <em>*</em></span><select id="shift" required><option value="">Selecione o turno</option><option value="DIURNO">Manhã (diurno)</option><option value="VESPERTINO">Tarde (vespertino)</option><option value="NOTURNO">Madrugada (noturno)</option></select><label class="employee-selection-toggle"><input type="checkbox" id="use-all-shift-employees" checked /><span><b>Utilizar todos os colaboradores do turno</b><small id="employee-selection-hint">Todos os colaboradores da unidade e turno selecionados serão incluídos automaticamente.</small></span></label></div>
                 <label class="field"><span>Data do DDS</span><input id="dds-date" type="date" /><small class="field-hint">Opcional. Se ficar em branco, o campo de data do PDF também ficará em branco.</small></label>
                 <label class="field"><span>Duração prevista</span><select id="duration"><option value="01:00" selected>01:00</option></select></label>
               </div>
@@ -53,10 +53,7 @@
               <div class="supervisor-panel">
                 <div class="supervisor-icon">♙</div><div class="supervisor-copy"><span>Responsável(is) conforme o turno</span><b id="supervisor-value">Selecione um turno para consultar</b></div><span class="auto-tag"><span>✓</span> Automático</span>
               </div>
-              <div class="employee-selection-box">
-                <label class="employee-selection-toggle"><input type="checkbox" id="use-all-shift-employees" checked /><span><b>Utilizar todos os colaboradores do turno</b><small id="employee-selection-hint">Todos os colaboradores da unidade e turno selecionados serão incluídos automaticamente.</small></span></label>
-                <div id="employee-selection-panel" class="employee-selection-panel hidden"><div class="employee-selection-tools"><b>Escolha os participantes</b><button type="button" class="text-button" id="select-all-visible-employees">Selecionar todos</button></div><div id="employee-selection-list" class="employee-selection-list"></div></div>
-              </div>
+              <div id="employee-selection-panel" class="employee-selection-panel hidden"><div class="employee-selection-tools"><b>Escolha os participantes</b><button type="button" class="text-button" id="select-all-visible-employees">Selecionar todos</button></div><div id="employee-selection-list" class="employee-selection-list"></div></div>
 
               <div class="section-divider"></div>
               <div class="panel-heading content-heading"><div class="step-badge">02</div><div><h2>Objetivo e conteúdo educativo</h2><p>Gere um rascunho, revise e ajuste antes de emitir o PDF.</p></div></div>
