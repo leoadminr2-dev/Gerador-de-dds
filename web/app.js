@@ -20,7 +20,7 @@ let topicSearchTimer=null;
 function resetTopicEditor(){
  $('topic-create-form')?.reset();
  if($('editing-topic-id'))$('editing-topic-id').value='';
- if($('save-topic-btn'))$('save-topic-btn').textContent='Salvar tema →';
+ if($('save-topic-btn'))$('save-topic-btn').textContent='Salvar tema na biblioteca →';
  $('cancel-topic-edit')?.classList.add('hidden');
 }
 function startEditTopic(id){
@@ -37,10 +37,17 @@ async function loadTopics(){
   const q=$('topic-search')?.value||'',category=$('topic-category')?.value||'TODAS';
   const data=await api(`/api/topics?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`);
   state.topics=data.topics||[];state.topicCategories=data.categories||[];
+  const storageLabel=$('topic-storage-label');if(storageLabel)storageLabel.textContent=data.storage_label||'Banco de temas';
   const cat=$('topic-category');if(cat){const previous=cat.value;cat.innerHTML='<option value="TODAS">Todas as categorias</option>'+state.topicCategories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');cat.value=state.topicCategories.includes(previous)?previous:'TODAS'}
   const datalist=$('topic-options');if(datalist)datalist.innerHTML=state.topics.map(t=>`<option value="${esc(t.title)}"></option>`).join('');
   const count=$('topic-count');if(count)count.textContent=`${data.count} tema${data.count===1?'':'s'} disponível${data.count===1?'':'eis'} neste ambiente`;
-  const list=$('topic-library');if(list)list.innerHTML=state.topics.length?state.topics.map(t=>`<article class="topic-card"><div class="topic-card-top"><span class="topic-category">${esc(t.category)}</span><span class="topic-source">${t.source==='biblioteca inicial'?'Biblioteca inicial':'Tema cadastrado'}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.objective)}</p><div class="topic-card-actions"><button class="button primary small" data-use-topic="${t.id}">Usar neste DDS</button><button class="button secondary small" data-edit-topic="${t.id}">Editar conteúdo</button>${t.source==='cadastrado pelo usuário'?`<button class="button secondary small" data-delete-topic="${t.id}">Excluir</button>`:''}</div></article>`).join(''):'<div class="empty-state">Nenhum tema encontrado. Ajuste a busca ou cadastre um novo tema.</div>';
+   const list=$('topic-library');if(list)list.innerHTML=state.topics.length?state.topics.map(t=>{
+    const sources=Array.isArray(t.sources)?t.sources:[];
+    const updated=t.updated_at?new Date(t.updated_at).toLocaleDateString('pt-BR'):'';
+    const sourceLinks=sources.length?`<details class="topic-card-sources"><summary>${sources.length} referência(s) online</summary><ul>${sources.map(src=>`<li><a href="${esc(src.url)}" target="_blank" rel="noopener noreferrer">${esc(src.title||src.url)}</a>${src.authority?`<small>${esc(src.authority)}</small>`:''}</li>`).join('')}</ul></details>`:'';
+    const sourceNote=t.source_status==='offline-draft'?'<p class="topic-source-note">Rascunho não verificado online. Confirme as fontes oficiais e os procedimentos locais antes de usar.</p>':'';
+    return `<article class="topic-card"><div class="topic-card-top"><span class="topic-category">${esc(t.category)}</span><span class="topic-source">${esc(t.source_label||'Tema cadastrado')}</span></div><h3>${esc(t.title)}</h3><p>${esc(t.objective)}</p>${updated?`<small class="topic-updated">Salvo/atualizado em ${esc(updated)}</small>`:''}${sourceLinks}${sourceNote}<div class="topic-card-actions"><button class="button primary small" data-use-topic="${t.id}">Usar neste DDS</button><button class="button secondary small" data-edit-topic="${t.id}">Editar conteúdo</button>${t.source==='cadastrado pelo usuário'?`<button class="button secondary small" data-delete-topic="${t.id}">Excluir</button>`:''}</div></article>`;
+   }).join(''):'<div class="empty-state">Nenhum tema encontrado. Ajuste a busca ou cadastre um novo tema.</div>';
   list?.querySelectorAll('[data-use-topic]').forEach(b=>b.addEventListener('click',()=>useTopic(Number(b.dataset.useTopic))));
   list?.querySelectorAll('[data-edit-topic]').forEach(b=>b.addEventListener('click',()=>startEditTopic(Number(b.dataset.editTopic))));
   list?.querySelectorAll('[data-delete-topic]').forEach(b=>b.addEventListener('click',()=>removeTopic(Number(b.dataset.deleteTopic))));
