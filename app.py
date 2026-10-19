@@ -371,8 +371,9 @@ def _approved_source_url(url: str) -> bool:
             return False
         if host.endswith(('.local', '.internal', '.localhost')):
             return False
-        # Never fetch search result pages or redirector links as source material.
-        if host == 'duckduckgo.com' or host.endswith('.duckduckgo.com') or host == 'bing.com' or host.endswith('.bing.com'):
+        # Search engines are discovery tools, not source documents to cite as evidence.
+        search_hosts=('google.com','bing.com','duckduckgo.com','brave.com','ecosia.org','yahoo.com')
+        if any(host == domain or host.endswith('.' + domain) for domain in search_hosts):
             return False
         # Reject literal private/reserved IP addresses.
         import ipaddress
