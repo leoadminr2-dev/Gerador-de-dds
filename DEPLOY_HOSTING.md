@@ -12,6 +12,8 @@ Esta configuração prepara a hospedagem com **contas individuais e período de 
 - O sistema verifica o prazo no servidor em todas as rotas protegidas. Após expirar, o testador não gera nem consulta operações protegidas, mas sua conta e seus dados permanecem guardados. O administrador pode prorrogar o teste.
 - São registrados logins e alterações administrativas. Senhas ficam em hash; tokens de convite e redefinição são armazenados somente como hash.
 - O administrador pode gerar link de redefinição de senha de uso único, válido por uma hora, e precisa entregá-lo à pessoa por canal seguro.
+- Alterações de senha e de status invalidam sessões anteriores, exigindo novo login.
+- As contas controlam quem pode entrar, mas o espaço operacional atual (planilha de colaboradores, temas, histórico e PDFs) é compartilhado entre as contas autorizadas. Convide somente pessoas confiáveis da mesma equipe/organização; não usar este desenho como isolamento entre empresas ou clientes.
 
 ## Alertas de vencimento
 O serviço verifica os marcos de 5, 3 e 1 dia e registra avisos com chave única por conta/marco. Para efetivamente enviar e-mails, configure no provedor:
