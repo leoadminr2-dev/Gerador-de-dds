@@ -314,3 +314,7 @@
   .form-bottom .privacy-note { flex: 1 1 100%; }
   .form-bottom .generate-highlight { width: 100%; }
 }
+
+/* Status de armazenamento sem alterar o padrão visual da navegação. */
+.sidebar-status.storage-warning .nav-icon { background: rgba(255,190,75,.18); color: #ffe0a1; }
+.sidebar-status.storage-warning small { color: #ffe0a1 !important; }
