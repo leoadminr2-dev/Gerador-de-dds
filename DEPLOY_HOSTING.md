@@ -1,29 +1,50 @@
 # Hospedagem web — Gerador de DDS
 
-## Estado
-O pacote está preparado para deploy em um serviço Python que suporte disco persistente e variáveis de ambiente. O arquivo `render.yaml` descreve um serviço Render com disco persistente de 1 GB. **Ainda não está publicado**: a publicação exige que o titular autorize a conexão do repositório e configure a senha administrativa no provedor.
+## Estado desta branch
+Esta configuração prepara a hospedagem com **contas individuais e período de teste controlado pelo servidor**. A branch de teste não significa que o serviço está publicado ou que os segredos já foram configurados. Não ativar em produção até revisar custo, acesso, backup e SMTP.
 
-## Segurança
-- `DDS_HOSTED=1` ativa o modo hospedado.
-- `DDS_ADMIN_USER` define o usuário de acesso (padrão `admin`).
-- `DDS_ADMIN_PASSWORD` é obrigatório e deve ter no mínimo 16 caracteres; o processo se recusa a iniciar sem ele.
-- A aplicação usa autenticação HTTP Basic e deve ser servida exclusivamente por HTTPS do provedor.
-- `/healthz` é a única rota pública, para verificação técnica de saúde.
-- O disco persistente em `/var/data` guarda planilha/estado, temas e PDFs. Não remover o disco nem mudar o caminho sem backup.
-- Um único worker Gunicorn é configurado para evitar concorrência indevida em arquivos SQLite locais.
+## Como funciona o acesso
+- `DDS_ACCOUNT_AUTH=1` ativa autenticação individual. O aplicativo falha na inicialização se os segredos administrativos obrigatórios não estiverem configurados.
+- O administrador inicial é criado com `DDS_ADMIN_EMAIL` e `DDS_ADMIN_PASSWORD`. A senha tem no mínimo 16 caracteres e deve ser guardada como segredo do provedor; em cada inicialização, essa senha definida no provedor é sincronizada com a conta administrativa para permitir recuperação controlada.
+- `DDS_SESSION_SECRET` deve conter pelo menos 32 caracteres aleatórios e assinar as sessões. Não reutilizar a senha administrativa como segredo de sessão.
+- Cada pessoa entra com sua própria conta. Cadastro público sem convite não é permitido.
+- Convite de testador tem uso único e vence em 7 dias. A contagem de 30 dias começa quando o cadastro é concluído.
+- O sistema verifica o prazo no servidor em todas as rotas protegidas. Após expirar, o testador não gera nem consulta operações protegidas, mas sua conta e seus dados permanecem guardados. O administrador pode prorrogar o teste.
+- São registrados logins e alterações administrativas. Senhas ficam em hash; tokens de convite e redefinição são armazenados somente como hash.
+- O administrador pode gerar link de redefinição de senha de uso único, válido por uma hora, e precisa entregá-lo à pessoa por canal seguro.
 
-## Passos do deploy
-1. Colocar o diretório do projeto em um repositório Git privado.
-2. No provedor, criar um novo Web Service usando o blueprint `render.yaml`.
-3. Criar e guardar uma senha administrativa forte (mínimo 16 caracteres) como variável secreta `DDS_ADMIN_PASSWORD`; não colocar a senha no código ou em mensagens.
-4. Confirmar `DDS_HOSTED=1`, `DDS_DATA_DIR=/var/data`, `DDS_ADMIN_USER=admin`.
-5. Autorizar o serviço, aguardar o build e confirmar `/healthz`.
-6. Entrar no endereço HTTPS e autenticar com as credenciais administrativas.
-7. Importar a planilha atualizada e validar geração de PDF, importação, exportação, histórico, upload de planilha e pesquisa de tema.
-8. Criar backup dos dados antes de qualquer alteração de infraestrutura.
+## Alertas de vencimento
+O serviço verifica os marcos de 5, 3 e 1 dia e registra avisos com chave única por conta/marco. Para efetivamente enviar e-mails, configure no provedor:
+- `DDS_SMTP_HOST`
+- `DDS_SMTP_PORT` (normalmente 587 com STARTTLS ou 465 com TLS implícito)
+- `DDS_SMTP_USER`
+- `DDS_SMTP_PASSWORD`
+- `DDS_SMTP_FROM`
 
-## Custo e autorização
-A configuração usa um serviço `starter` com disco persistente. Pode haver cobrança conforme os preços e condições atuais do provedor. Não iniciar o serviço sem revisar o custo e confirmar o titular da conta.
+Sem SMTP, os avisos ficam identificados no painel como pendentes — o sistema não os marca como enviados. Testar uma entrega real antes de convidar usuários. O worker de avisos está preparado para a configuração atual de um único worker Gunicorn; não aumentar workers/instâncias sem migrar a rotina para um agendador/banco que coordene envios.
 
-## Pesquisa de temas
-A ação de pesquisa tenta consultar novamente fontes oficiais a cada solicitação. Prioriza MTE e Fundacentro; Anvisa é fonte complementar quando o assunto envolve saneantes, limpeza, saúde ou aeroportos. Se a pesquisa falhar, o sistema retorna erro explícito e não apresenta conteúdo antigo ou genérico como se tivesse sido verificado naquele momento.
+## Variáveis do blueprint
+- `DDS_HOSTED=1`
+- `DDS_DATA_DIR=/var/data`
+- `DDS_ACCOUNT_AUTH=1`
+- `DDS_ADMIN_EMAIL` — segredo/configuração no Render
+- `DDS_ADMIN_PASSWORD` — segredo, mínimo 16 caracteres
+- `DDS_SESSION_SECRET` — segredo aleatório, mínimo 32 caracteres
+- SMTP conforme seção acima para alertas por e-mail
+
+Não coloque senhas, tokens, banco de contas ou dados dos colaboradores no repositório. O código deste repositório está público no momento; os segredos não devem ser escritos em arquivos versionados. Considere usar um repositório privado se o código e os detalhes operacionais não forem destinados à divulgação.
+
+## Procedimento de publicação
+1. Confirmar o plano e o custo vigente do serviço e do disco com o titular da conta; não iniciar/reconfigurar recurso pago sem autorização.
+2. Selecionar esta branch para revisão e configurar as variáveis de ambiente/segredos no painel do provedor. Não enviar segredos por chat ou commit.
+3. Confirmar que o disco persistente de 1 GB está montado em `/var/data`. A aplicação guarda os dados operacionais e `accounts.sqlite3` nesse local.
+4. Implantar primeiro em ambiente de teste com HTTPS e testar login administrativo, convite, cadastro, expiração, prorrogação, desativação, redefinição de senha e envio real de e-mail.
+5. Importar uma cópia de teste da planilha, validar pesquisa e geração de PDF institucional, conferindo a formatação e o histórico.
+6. Fazer backup de `/var/data` antes de atualizar ou mudar o disco. O banco de contas contém hashes e metadados pessoais; restringir o acesso ao backup.
+7. Só então aprovar a integração e publicar. Não alterar a branch `main` antes dos testes passarem.
+
+## Pesquisa de temas e homologação
+A pesquisa tenta consultar fontes públicas oficiais no momento da solicitação. Quando a busca falha, o sistema deve informar a falha e não apresentar material antigo como se fosse pesquisa verificada. A ferramenta e os PDFs precisam ser validados com a liderança, TI e Segurança/QSSMA; não afirmar homologação formal sem aprovação.
+
+## Limites de conclusão
+O código e os testes podem ser preparados nesta branch, mas a publicação real ainda depende de configuração/segredos do titular, de decisão sobre custo, de SMTP válido e de um deploy com testes de ponta a ponta. Um commit no GitHub não prova que o site foi implantado ou está acessível.
