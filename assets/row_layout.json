@@ -1,0 +1,685 @@
+{
+  "columns": {
+    "number": [
+      22.3,
+      48.6
+    ],
+    "name": [
+      48.6,
+      276.8
+    ],
+    "area": [
+      276.8,
+      346.4
+    ],
+    "unit": [
+      346.4,
+      412.6
+    ],
+    "signature": [
+      412.6,
+      569.3
+    ]
+  },
+  "pages": [
+    {
+      "page": 0,
+      "rows": [
+        {
+          "number": 1,
+          "top": 410.69,
+          "bottom": 427.39,
+          "center": 419.03999999999996
+        },
+        {
+          "number": 2,
+          "top": 427.39,
+          "bottom": 444.43,
+          "center": 435.90999999999997
+        },
+        {
+          "number": 3,
+          "top": 444.43,
+          "bottom": 461.47,
+          "center": 452.95000000000005
+        },
+        {
+          "number": 4,
+          "top": 461.47,
+          "bottom": 478.63,
+          "center": 470.05
+        },
+        {
+          "number": 5,
+          "top": 478.63,
+          "bottom": 495.67,
+          "center": 487.15
+        },
+        {
+          "number": 6,
+          "top": 495.67,
+          "bottom": 512.71,
+          "center": 504.19000000000005
+        },
+        {
+          "number": 7,
+          "top": 512.71,
+          "bottom": 529.75,
+          "center": 521.23
+        },
+        {
+          "number": 8,
+          "top": 529.75,
+          "bottom": 546.79,
+          "center": 538.27
+        },
+        {
+          "number": 9,
+          "top": 546.79,
+          "bottom": 563.95,
+          "center": 555.37
+        },
+        {
+          "number": 10,
+          "top": 563.95,
+          "bottom": 580.99,
+          "center": 572.47
+        },
+        {
+          "number": 11,
+          "top": 580.99,
+          "bottom": 598.06,
+          "center": 589.525
+        },
+        {
+          "number": 12,
+          "top": 598.06,
+          "bottom": 613.66,
+          "center": 605.8599999999999
+        },
+        {
+          "number": 13,
+          "top": 613.66,
+          "bottom": 629.98,
+          "center": 621.8199999999999
+        },
+        {
+          "number": 14,
+          "top": 629.98,
+          "bottom": 647.02,
+          "center": 638.5
+        },
+        {
+          "number": 15,
+          "top": 647.02,
+          "bottom": 664.18,
+          "center": 655.5999999999999
+        },
+        {
+          "number": 16,
+          "top": 664.18,
+          "bottom": 681.22,
+          "center": 672.7
+        },
+        {
+          "number": 17,
+          "top": 681.22,
+          "bottom": 698.26,
+          "center": 689.74
+        },
+        {
+          "number": 18,
+          "top": 698.26,
+          "bottom": 715.3,
+          "center": 706.78
+        },
+        {
+          "number": 19,
+          "top": 715.3,
+          "bottom": 732.22,
+          "center": 723.76
+        },
+        {
+          "number": 20,
+          "top": 732.22,
+          "bottom": 749.26,
+          "center": 740.74
+        },
+        {
+          "number": 21,
+          "top": 749.26,
+          "bottom": 766.32,
+          "center": 757.79
+        },
+        {
+          "number": 22,
+          "top": 766.32,
+          "bottom": 783.24,
+          "center": 774.78
+        },
+        {
+          "number": 23,
+          "top": 783.24,
+          "bottom": 800.4,
+          "center": 791.8199999999999
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "rows": [
+        {
+          "number": 24,
+          "top": 103.1,
+          "bottom": 119.42,
+          "center": 111.25999999999999
+        },
+        {
+          "number": 25,
+          "top": 119.42,
+          "bottom": 135.62,
+          "center": 127.52000000000001
+        },
+        {
+          "number": 26,
+          "top": 135.62,
+          "bottom": 151.94,
+          "center": 143.78
+        },
+        {
+          "number": 27,
+          "top": 151.94,
+          "bottom": 168.38,
+          "center": 160.16
+        },
+        {
+          "number": 28,
+          "top": 168.38,
+          "bottom": 184.7,
+          "center": 176.54
+        },
+        {
+          "number": 29,
+          "top": 184.7,
+          "bottom": 200.9,
+          "center": 192.8
+        },
+        {
+          "number": 30,
+          "top": 200.9,
+          "bottom": 217.22,
+          "center": 209.06
+        },
+        {
+          "number": 31,
+          "top": 217.22,
+          "bottom": 233.54,
+          "center": 225.38
+        },
+        {
+          "number": 32,
+          "top": 233.54,
+          "bottom": 249.89,
+          "center": 241.71499999999997
+        },
+        {
+          "number": 33,
+          "top": 249.89,
+          "bottom": 266.21,
+          "center": 258.04999999999995
+        },
+        {
+          "number": 34,
+          "top": 266.21,
+          "bottom": 282.53,
+          "center": 274.37
+        },
+        {
+          "number": 35,
+          "top": 282.53,
+          "bottom": 297.41,
+          "center": 289.97
+        },
+        {
+          "number": 36,
+          "top": 297.41,
+          "bottom": 313.01,
+          "center": 305.21000000000004
+        },
+        {
+          "number": 37,
+          "top": 313.01,
+          "bottom": 329.33,
+          "center": 321.16999999999996
+        },
+        {
+          "number": 38,
+          "top": 329.33,
+          "bottom": 345.65,
+          "center": 337.49
+        },
+        {
+          "number": 39,
+          "top": 345.65,
+          "bottom": 362.09,
+          "center": 353.87
+        },
+        {
+          "number": 40,
+          "top": 362.09,
+          "bottom": 378.29,
+          "center": 370.19
+        },
+        {
+          "number": 41,
+          "top": 378.29,
+          "bottom": 394.49,
+          "center": 386.39
+        },
+        {
+          "number": 42,
+          "top": 394.49,
+          "bottom": 410.81,
+          "center": 402.65
+        },
+        {
+          "number": 43,
+          "top": 410.81,
+          "bottom": 427.03,
+          "center": 418.91999999999996
+        },
+        {
+          "number": 44,
+          "top": 427.03,
+          "bottom": 443.35,
+          "center": 435.19
+        },
+        {
+          "number": 45,
+          "top": 443.35,
+          "bottom": 459.55,
+          "center": 451.45000000000005
+        },
+        {
+          "number": 46,
+          "top": 459.55,
+          "bottom": 475.75,
+          "center": 467.65
+        },
+        {
+          "number": 47,
+          "top": 475.75,
+          "bottom": 492.07,
+          "center": 483.90999999999997
+        },
+        {
+          "number": 48,
+          "top": 492.07,
+          "bottom": 508.27,
+          "center": 500.16999999999996
+        },
+        {
+          "number": 49,
+          "top": 508.27,
+          "bottom": 524.59,
+          "center": 516.4300000000001
+        },
+        {
+          "number": 50,
+          "top": 524.59,
+          "bottom": 540.79,
+          "center": 532.69
+        },
+        {
+          "number": 51,
+          "top": 540.79,
+          "bottom": 557.11,
+          "center": 548.95
+        },
+        {
+          "number": 52,
+          "top": 557.11,
+          "bottom": 573.31,
+          "center": 565.21
+        },
+        {
+          "number": 53,
+          "top": 573.31,
+          "bottom": 589.54,
+          "center": 581.425
+        },
+        {
+          "number": 54,
+          "top": 589.54,
+          "bottom": 605.86,
+          "center": 597.7
+        },
+        {
+          "number": 55,
+          "top": 605.86,
+          "bottom": 622.06,
+          "center": 613.96
+        },
+        {
+          "number": 56,
+          "top": 622.06,
+          "bottom": 638.38,
+          "center": 630.22
+        },
+        {
+          "number": 57,
+          "top": 638.38,
+          "bottom": 654.58,
+          "center": 646.48
+        },
+        {
+          "number": 58,
+          "top": 654.58,
+          "bottom": 670.78,
+          "center": 662.6800000000001
+        },
+        {
+          "number": 59,
+          "top": 670.78,
+          "bottom": 687.1,
+          "center": 678.94
+        },
+        {
+          "number": 60,
+          "top": 687.1,
+          "bottom": 703.3,
+          "center": 695.2
+        },
+        {
+          "number": 61,
+          "top": 703.3,
+          "bottom": 719.62,
+          "center": 711.46
+        },
+        {
+          "number": 62,
+          "top": 719.62,
+          "bottom": 735.82,
+          "center": 727.72
+        },
+        {
+          "number": 63,
+          "top": 735.82,
+          "bottom": 752.16,
+          "center": 743.99
+        },
+        {
+          "number": 64,
+          "top": 752.16,
+          "bottom": 768.36,
+          "center": 760.26
+        },
+        {
+          "number": 65,
+          "top": 768.36,
+          "bottom": 784.68,
+          "center": 776.52
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "rows": [
+        {
+          "number": 66,
+          "top": 103.1,
+          "bottom": 119.42,
+          "center": 111.25999999999999
+        },
+        {
+          "number": 67,
+          "top": 119.42,
+          "bottom": 135.62,
+          "center": 127.52000000000001
+        },
+        {
+          "number": 68,
+          "top": 135.62,
+          "bottom": 151.94,
+          "center": 143.78
+        },
+        {
+          "number": 69,
+          "top": 151.94,
+          "bottom": 168.38,
+          "center": 160.16
+        },
+        {
+          "number": 70,
+          "top": 168.38,
+          "bottom": 184.7,
+          "center": 176.54
+        },
+        {
+          "number": 71,
+          "top": 184.7,
+          "bottom": 200.9,
+          "center": 192.8
+        },
+        {
+          "number": 72,
+          "top": 200.9,
+          "bottom": 217.22,
+          "center": 209.06
+        },
+        {
+          "number": 73,
+          "top": 217.22,
+          "bottom": 233.54,
+          "center": 225.38
+        },
+        {
+          "number": 74,
+          "top": 233.54,
+          "bottom": 249.89,
+          "center": 241.71499999999997
+        },
+        {
+          "number": 75,
+          "top": 249.89,
+          "bottom": 266.21,
+          "center": 258.04999999999995
+        },
+        {
+          "number": 76,
+          "top": 266.21,
+          "bottom": 282.53,
+          "center": 274.37
+        },
+        {
+          "number": 77,
+          "top": 282.53,
+          "bottom": 297.41,
+          "center": 289.97
+        },
+        {
+          "number": 78,
+          "top": 297.41,
+          "bottom": 313.01,
+          "center": 305.21000000000004
+        },
+        {
+          "number": 79,
+          "top": 313.01,
+          "bottom": 329.33,
+          "center": 321.16999999999996
+        },
+        {
+          "number": 80,
+          "top": 329.33,
+          "bottom": 345.65,
+          "center": 337.49
+        },
+        {
+          "number": 81,
+          "top": 345.65,
+          "bottom": 362.09,
+          "center": 353.87
+        },
+        {
+          "number": 82,
+          "top": 362.09,
+          "bottom": 378.29,
+          "center": 370.19
+        },
+        {
+          "number": 83,
+          "top": 378.29,
+          "bottom": 394.49,
+          "center": 386.39
+        },
+        {
+          "number": 84,
+          "top": 394.49,
+          "bottom": 410.81,
+          "center": 402.65
+        },
+        {
+          "number": 85,
+          "top": 410.81,
+          "bottom": 427.03,
+          "center": 418.91999999999996
+        },
+        {
+          "number": 86,
+          "top": 427.03,
+          "bottom": 443.35,
+          "center": 435.19
+        },
+        {
+          "number": 87,
+          "top": 443.35,
+          "bottom": 459.55,
+          "center": 451.45000000000005
+        },
+        {
+          "number": 88,
+          "top": 459.55,
+          "bottom": 475.75,
+          "center": 467.65
+        },
+        {
+          "number": 89,
+          "top": 475.75,
+          "bottom": 492.07,
+          "center": 483.90999999999997
+        },
+        {
+          "number": 90,
+          "top": 492.07,
+          "bottom": 508.27,
+          "center": 500.16999999999996
+        },
+        {
+          "number": 91,
+          "top": 508.27,
+          "bottom": 524.59,
+          "center": 516.4300000000001
+        },
+        {
+          "number": 92,
+          "top": 524.59,
+          "bottom": 540.79,
+          "center": 532.69
+        },
+        {
+          "number": 93,
+          "top": 540.79,
+          "bottom": 557.11,
+          "center": 548.95
+        },
+        {
+          "number": 94,
+          "top": 557.11,
+          "bottom": 573.31,
+          "center": 565.21
+        },
+        {
+          "number": 95,
+          "top": 573.31,
+          "bottom": 589.54,
+          "center": 581.425
+        },
+        {
+          "number": 96,
+          "top": 589.54,
+          "bottom": 605.86,
+          "center": 597.7
+        },
+        {
+          "number": 97,
+          "top": 605.86,
+          "bottom": 622.06,
+          "center": 613.96
+        },
+        {
+          "number": 98,
+          "top": 622.06,
+          "bottom": 638.38,
+          "center": 630.22
+        },
+        {
+          "number": 99,
+          "top": 638.38,
+          "bottom": 654.58,
+          "center": 646.48
+        },
+        {
+          "number": 100,
+          "top": 654.58,
+          "bottom": 670.78,
+          "center": 662.6800000000001
+        },
+        {
+          "number": 101,
+          "top": 670.78,
+          "bottom": 687.1,
+          "center": 678.94
+        },
+        {
+          "number": 102,
+          "top": 687.1,
+          "bottom": 703.3,
+          "center": 695.2
+        },
+        {
+          "number": 103,
+          "top": 703.3,
+          "bottom": 719.62,
+          "center": 711.46
+        },
+        {
+          "number": 104,
+          "top": 719.62,
+          "bottom": 735.82,
+          "center": 727.72
+        },
+        {
+          "number": 105,
+          "top": 735.82,
+          "bottom": 752.16,
+          "center": 743.99
+        },
+        {
+          "number": 106,
+          "top": 752.16,
+          "bottom": 768.36,
+          "center": 760.26
+        },
+        {
+          "number": 107,
+          "top": 768.36,
+          "bottom": 784.68,
+          "center": 776.52
+        }
+      ]
+    }
+  ],
+  "capacity": 107,
+  "source": "PDF institucional enviado pelo usuário (FR-SGQ-001/AD-CO); 23 + 42 + 42 linhas e numeração sequencial reconstruída"
+}
