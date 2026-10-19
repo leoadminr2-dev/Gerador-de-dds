@@ -58,6 +58,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_BYTES
 HOSTED_MODE = os.environ.get('DDS_HOSTED', '').strip() == '1'
 ADMIN_USER = os.environ.get('DDS_ADMIN_USER', 'admin')
 ADMIN_PASSWORD = os.environ.get('DDS_ADMIN_PASSWORD', '')
+ACCOUNT_AUTH_ENABLED = os.environ.get('DDS_ACCOUNT_AUTH', '').strip() == '1'
 if HOSTED_MODE and len(ADMIN_PASSWORD) < 16:
     raise RuntimeError('Hospedagem bloqueada: configure DDS_ADMIN_PASSWORD com pelo menos 16 caracteres antes de iniciar.')
 
@@ -65,7 +66,7 @@ if HOSTED_MODE and len(ADMIN_PASSWORD) < 16:
 @app.before_request
 def require_hosted_admin_auth():
     # Hosted instances require HTTP Basic Auth on the whole application; only health checks are public.
-    if not HOSTED_MODE or request.path == '/healthz':
+    if not HOSTED_MODE or request.path == '/healthz' or ACCOUNT_AUTH_ENABLED:
         return None
     auth = request.authorization
     username = auth.username if auth else ''
@@ -1246,7 +1247,9 @@ def template_capacity() -> int:
 
 @app.get('/')
 def index():
-    return send_from_directory(WEB_DIR,'index.html')
+    response = send_from_directory(WEB_DIR, 'index.html')
+    decorator = app.extensions.get('dds_decorate_index_response')
+    return decorator(response) if decorator else response
 
 @app.get('/api/health')
 def health():
@@ -1675,6 +1678,10 @@ def catch_static(path):
     candidate=WEB_DIR/path
     if candidate.is_file(): return send_from_directory(WEB_DIR,path)
     abort(404)
+
+# Individual accounts are opt-in until the hosting secrets are configured.
+from access_control import install_account_access
+install_account_access(app, DATA_DIR)
 
 if __name__=='__main__':
     port=int(os.environ.get('PORT', os.environ.get('DDS_PORT','8766')))
