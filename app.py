@@ -116,8 +116,7 @@ def persistent_storage_available() -> bool:
             if len(fields) < 5:
                 continue
             mountpoint = fields[4]
-            for escaped, literal in ((r'\040', ' '), (r'\011', '\t'), (r'\134', r'\')):
-                mountpoint = mountpoint.replace(escaped, literal)
+            mountpoint = fields[4].replace(r'\040', ' ').replace(r'\011', chr(9)).replace(r'\134', chr(92))
             if Path(mountpoint).resolve() == target:
                 return True
     except (OSError, ValueError):
