@@ -691,6 +691,51 @@ def init_topics_db() -> None:
                 WHERE title=? AND source='biblioteca inicial' AND (category<>? OR objective<>? OR content<>?) ''',(category,objective,content,now,title,category,objective,content))
         con.commit()
 
+def topic_source_metadata(source_value: str) -> dict:
+    """Expose provenance from the existing source column while preserving the DB schema."""
+    source_value=str(source_value or '')
+    if source_value.startswith('WEB-PESQUISADO:'):
+        label='Pesquisa online — revisar'
+        status='online-research'
+        raw_sources=source_value.partition(':')[2]
+    elif source_value.startswith('OFFLINE-DRAFT:'):
+        label='Rascunho offline — não verificado'
+        status='offline-draft'
+        raw_sources=''
+    elif source_value=='biblioteca inicial':
+        label='Catálogo inicial — conferir antes de usar'
+        status='initial-library'
+        raw_sources=''
+    elif source_value=='cadastrado pelo usuário':
+        label='Cadastrado/editado manualmente'
+        status='user-maintained'
+        raw_sources=''
+    else:
+        label='Tema cadastrado'
+        status='saved-topic'
+        raw_sources=''
+    sources=[]
+    if raw_sources:
+        try:
+            parsed=json.loads(raw_sources)
+        except (TypeError, ValueError):
+            parsed=[]
+        if isinstance(parsed,list):
+            for item in parsed:
+                if not isinstance(item,dict):
+                    continue
+                url=str(item.get('url') or '').strip()
+                if not _approved_source_url(url):
+                    continue
+                sources.append({
+                    'title':str(item.get('title') or url)[:240],
+                    'url':url,
+                    'authority':str(item.get('authority') or ''),
+                    'snippet':str(item.get('excerpt') or item.get('snippet') or '')[:500],
+                })
+    return {'source_label':label,'source_status':status,'sources':sources}
+
+
 def topic_rows(q: str = '', category: str = '') -> list[dict]:
     init_topics_db()
     sql='SELECT id,title,category,objective,content,source,created_at,updated_at FROM topics WHERE 1=1'
@@ -703,7 +748,10 @@ def topic_rows(q: str = '', category: str = '') -> list[dict]:
     sql+=' ORDER BY category COLLATE NOCASE,title COLLATE NOCASE'
     with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
         con.row_factory=sqlite3.Row
-        return [dict(row) for row in con.execute(sql,args).fetchall()]
+        rows=[dict(row) for row in con.execute(sql,args).fetchall()]
+    for row in rows:
+        row.update(topic_source_metadata(row.get('source','')))
+    return rows
 
 def read_state() -> dict:
     if not STATE_PATH.exists(): return default_state()
@@ -979,12 +1027,37 @@ def parse_xlsx(file_storage, current_month: int | None = None) -> tuple[list[dic
 
 
 def wrap_words(text: str, fontname: str, fontsize: float, width: float) -> list[str]:
+    """Wrap by measured font width, including a single token longer than the cell."""
     lines=[]; line=''
+
+    def split_long_word(word: str) -> list[str]:
+        parts=[]
+        remainder=word
+        while remainder:
+            low,high,best=1,len(remainder),0
+            while low<=high:
+                mid=(low+high)//2
+                measured=fitz.get_text_length(remainder[:mid],fontname=fontname,fontsize=fontsize)
+                if measured<=width:
+                    best=mid; low=mid+1
+                else:
+                    high=mid-1
+            if best==0: best=1
+            parts.append(remainder[:best]); remainder=remainder[best:]
+        return parts
+
     for word in text.split():
+        if fitz.get_text_length(word,fontname=fontname,fontsize=fontsize)>width:
+            if line: lines.append(line); line=''
+            pieces=split_long_word(word)
+            lines.extend(pieces[:-1])
+            line=pieces[-1] if pieces else ''
+            continue
         candidate=(line+' '+word).strip()
         if line and fitz.get_text_length(candidate,fontname=fontname,fontsize=fontsize)>width:
             lines.append(line); line=word
-        else: line=candidate
+        else:
+            line=candidate
     if line: lines.append(line)
     return lines
 
@@ -1024,6 +1097,27 @@ def draw_content(page, content: str) -> bool:
                 page.insert_text((x,y),line,fontname=font,fontsize=size,color=(0,0,0),overlay=True)
             return base < 8.1
     raise ValueError('O conteúdo ficou longo demais para o campo do formulário institucional. Resuma o texto antes de gerar o PDF.')
+
+
+def validate_content_fits_pdf(content: str) -> None:
+    """Preflight the current content cell without modifying the approved PDF template."""
+    text_value=str(content or '').strip()
+    if not text_value:
+        raise ValueError('Informe o conteúdo do DDS antes de salvar o tema.')
+    if len(text_value)>2600:
+        raise ValueError('O conteúdo ultrapassa 2.600 caracteres. Revise o texto antes de salvar.')
+    width,height=595.0,842.0
+    if TEMPLATE_PATH.exists():
+        with fitz.open(TEMPLATE_PATH) as template:
+            if not len(template):
+                raise ValueError('O modelo institucional não contém uma página válida.')
+            width,height=float(template[0].rect.width),float(template[0].rect.height)
+    probe=fitz.open()
+    try:
+        scratch=probe.new_page(width=width,height=height)
+        draw_content(scratch,text_value)
+    finally:
+        probe.close()
 
 
 def _count_pdf_pages(path: Path) -> int:
@@ -1371,6 +1465,7 @@ def research_topic():
         sources=_web_search(title)
         content=_draft_from_sources(title,sources)
         if content and sources:
+            validate_content_fits_pdf(content)
             category='Pesquisa na internet — revisar antes de usar'
             objective=f'Reforçar práticas seguras relacionadas a {title.lower()}, com base nas fontes públicas listadas.'
             now=datetime.now().isoformat(timespec='seconds')
@@ -1405,6 +1500,10 @@ def research_topic():
         'VERIFICAÇÃO ANTES DE USAR\nEste rascunho não foi validado por pesquisa automática nesta tentativa. Consulte as referências oficiais e adapte o DDS aos riscos e procedimentos reais do local antes de apresentar à equipe.\n\n'
         'MENSAGEM FINAL\nSegurança começa ao reconhecer o risco, seguir o procedimento e comunicar o que precisa ser corrigido.'
     )[:2600]
+    try:
+        validate_content_fits_pdf(content)
+    except ValueError as exc:
+        return jsonify({'error':f'O rascunho automático não coube no espaço do PDF. Revise o texto manualmente antes de salvar. Detalhe: {exc}'}),422
     sources=[
         {'title':'MTE — buscar normas e orientações oficiais','url':'https://www.google.com/search?q='+quote_plus('site:gov.br/trabalho-e-emprego '+title+' segurança do trabalho'),'snippet':'Link de busca para localizar publicações oficiais; confirme o documento original.'},
         {'title':'Fundacentro — buscar material técnico','url':'https://www.google.com/search?q='+quote_plus('site:gov.br/fundacentro '+title+' prevenção'),'snippet':'Link de busca para localizar material técnico; confirme o documento original.'}
@@ -1428,7 +1527,14 @@ def research_topic():
 def list_topics():
     rows=topic_rows(request.args.get('q',''),request.args.get('category',''))
     categories=sorted({row['category'] for row in topic_rows()},key=str.casefold)
-    return jsonify({'topics':rows,'categories':categories,'count':len(rows),'offline':True})
+    storage_configured=bool(str(os.environ.get('DDS_DATA_DIR','')).strip())
+    if HOSTED_MODE:
+        storage_label='Banco compartilhado no servidor' if storage_configured else 'Banco no servidor — persistência a confirmar'
+    else:
+        storage_label='Banco local deste computador'
+    return jsonify({'topics':rows,'categories':categories,'count':len(rows),
+                    'offline':not HOSTED_MODE,'storage_scope':'server' if HOSTED_MODE else 'local',
+                    'storage_label':storage_label,'persistent_storage_configured':storage_configured})
 
 @app.post('/api/topics')
 def create_topic():
@@ -1443,6 +1549,10 @@ def create_topic():
     if len(content)>2600: return jsonify({'error':'O conteúdo deve ter até 2.600 caracteres para caber no formulário.'}),400
     if len(category)>80: return jsonify({'error':'A categoria deve ter até 80 caracteres.'}),400
     if not objective: objective=f'Reforçar a prevenção e as práticas seguras relacionadas a {title.lower()}.'
+    try:
+        validate_content_fits_pdf(content)
+    except ValueError as exc:
+        return jsonify({'error':str(exc)}),400
     now=datetime.now().isoformat(timespec='seconds')
     init_topics_db()
     try:
@@ -1469,6 +1579,10 @@ def edit_topic(topic_id):
     if len(objective)>300: return jsonify({'error':'O objetivo deve ter até 300 caracteres.'}),400
     if not content: return jsonify({'error':'Informe o conteúdo do tema antes de salvar.'}),400
     if len(content)>2600: return jsonify({'error':'O conteúdo deve ter até 2.600 caracteres.'}),400
+    try:
+        validate_content_fits_pdf(content)
+    except ValueError as exc:
+        return jsonify({'error':str(exc)}),400
     now=datetime.now().isoformat(timespec='seconds')
     init_topics_db()
     try:
