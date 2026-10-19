@@ -367,7 +367,9 @@ def install_account_access(app, data_dir: Path) -> None:
                 )
                 _audit(con, admin_id, "bootstrap_admin_created", admin_id, "Conta inicial criada por variável de ambiente.")
             else:
-                con.execute("UPDATE users SET role='admin',status='active',disabled_at=NULL WHERE email=?", (admin_email,))
+                # The configured secret is the administrator recovery/rotation mechanism.
+                con.execute("UPDATE users SET role='admin',status='active',disabled_at=NULL,password_hash=? WHERE email=?",
+                            (generate_password_hash(admin_password, method="scrypt"), admin_email))
         _start_worker(app, db_path)
 
     def before_request_account_gate():
@@ -603,7 +605,7 @@ def install_account_access(app, data_dir: Path) -> None:
 <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="secondary" type="submit">Sair</button></form></div>
 <section class="card"><div class="toolbar"><div><h2>Convidar testador</h2><p class="muted">O convite vale por 7 dias e inicia os 30 dias quando a pessoa concluir o cadastro.</p></div></div>
 <form id="invite-form"><label for="invite-email">E-mail (opcional)</label><input id="invite-email" type="email" maxlength="254" placeholder="pessoa@exemplo.com"><p><button type="submit">Gerar convite individual</button></p></form>
-<div id="invite-result" hidden class="success"></div><div id="admin-message" aria-live="polite"></div></section>
+<div id="invite-result" hidden class="success"></div><h2 style="margin-top:18px">Convites pendentes</h2><div id="invitations"><p>Carregando…</p></div><div id="admin-message" aria-live="polite"></div></section>
 <section class="card" style="margin-top:18px"><div class="toolbar"><div><h2>Usuários</h2><p class="muted">A expiração bloqueia o uso operacional, sem apagar os dados.</p></div><button id="refresh" class="secondary" type="button">Atualizar</button></div>
 <div id="users"><p>Carregando…</p></div></section>
 <section class="card" style="margin-top:18px"><h2>Avisos de vencimento</h2><p class="muted">E-mails automáticos dependem de configurar SMTP. Sem SMTP, os avisos ficam pendentes; o painel não informa como enviados.</p><div id="notifications">Carregando…</div></section>
@@ -613,9 +615,11 @@ async function api(url,options={}){const r=await fetch(url,{...options,headers:{
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function loadUsers(){const box=document.querySelector('#users');try{const d=await api('/api/admin/users');if(!d.users.length){box.textContent='Nenhum testador cadastrado ainda.';return}box.innerHTML='<table><thead><tr><th>Conta</th><th>Status</th><th>Teste termina</th><th>Ações</th></tr></thead><tbody>'+d.users.map(u=>'<tr><td><b>'+esc(u.email)+'</b><br><small>'+esc(u.role)+'</small></td><td>'+esc(u.status_label)+'</td><td>'+esc(u.trial_ends_label)+'</td><td><div class="actions">'+(u.role==='tester'?'<button type="button" data-action="extend" data-id="'+esc(u.id)+'">Prorrogar 30 dias</button><button type="button" class="secondary" data-action="reset" data-id="'+esc(u.id)+'">Link de senha</button><button type="button" class="'+(u.status==='active'?'danger':'secondary')+'" data-action="toggle" data-status="'+esc(u.status)+'" data-id="'+esc(u.id)+'">'+(u.status==='active'?'Desativar':'Reativar')+'</button>':'Administrador')+'</div></td></tr>').join('')+'</tbody></table>'}catch(e){box.innerHTML='<div class="error">'+esc(e.message)+'</div>'}}
 async function loadNotifications(){const box=document.querySelector('#notifications');try{const d=await api('/api/admin/notifications');box.innerHTML=d.notifications.length?'<table><thead><tr><th>Conta</th><th>Aviso</th><th>Entrega</th></tr></thead><tbody>'+d.notifications.map(n=>'<tr><td>'+esc(n.email)+'</td><td>'+esc(n.milestone_days)+' dia(s)</td><td>'+esc(n.status_label)+(n.last_error?' · '+esc(n.last_error):'')+'</td></tr>').join('')+'</tbody></table>':'Nenhum aviso de vencimento registrado ainda.'}catch(e){box.textContent=e.message}}
-document.querySelector('#invite-form').addEventListener('submit',async e=>{e.preventDefault();const box=document.querySelector('#invite-result');const msg=document.querySelector('#admin-message');try{const d=await api('/api/admin/invitations',{method:'POST',body:JSON.stringify({email:document.querySelector('#invite-email').value.trim()})});box.hidden=false;box.innerHTML='<b>Convite criado. Copie e envie à pessoa:</b><pre>'+esc(d.invite_url)+'</pre><button id="copy-invite" type="button" class="secondary">Copiar link</button>';document.querySelector('#copy-invite').onclick=async()=>{try{await navigator.clipboard.writeText(d.invite_url);msg.innerHTML='<p class="success">Link copiado.</p>'}catch{msg.textContent='Selecione e copie o link acima.'}};document.querySelector('#invite-email').value='';await loadNotifications()}catch(err){msg.innerHTML='<div class="error">'+esc(err.message)+'</div>'}});
+async function loadInvitations(){const box=document.querySelector('#invitations');try{const d=await api('/api/admin/invitations');box.innerHTML=d.invitations.length?'<table><thead><tr><th>E-mail</th><th>Validade / status</th><th>Ação</th></tr></thead><tbody>'+d.invitations.map(i=>'<tr><td>'+esc(i.email||'Sem restrição de e-mail')+'</td><td>'+esc(i.status_label)+'<br><small>'+esc(i.expires_label)+'</small></td><td>'+(i.status==='pending'?'<button class="danger" type="button" data-revoke="'+esc(i.id)+'">Revogar</button>':'—')+'</td></tr>').join('')+'</tbody></table>':'Nenhum convite registrado.'}catch(e){box.textContent=e.message}}
+document.querySelector('#invitations').addEventListener('click',async e=>{const b=e.target.closest('button[data-revoke]');if(!b)return;const reason=prompt('Motivo para revogar este convite:');if(!reason||!reason.trim())return;try{await api('/api/admin/invitations/'+encodeURIComponent(b.dataset.revoke)+'/revoke',{method:'POST',body:JSON.stringify({reason:reason.trim()})});await loadInvitations()}catch(err){alert(err.message)}})
+document.querySelector('#invite-form').addEventListener('submit',async e=>{e.preventDefault();const box=document.querySelector('#invite-result');const msg=document.querySelector('#admin-message');try{const d=await api('/api/admin/invitations',{method:'POST',body:JSON.stringify({email:document.querySelector('#invite-email').value.trim()})});box.hidden=false;box.innerHTML='<b>Convite criado. Copie e envie à pessoa:</b><pre>'+esc(d.invite_url)+'</pre><button id="copy-invite" type="button" class="secondary">Copiar link</button>';document.querySelector('#copy-invite').onclick=async()=>{try{await navigator.clipboard.writeText(d.invite_url);msg.innerHTML='<p class="success">Link copiado.</p>'}catch{msg.textContent='Selecione e copie o link acima.'}};document.querySelector('#invite-email').value='';await loadNotifications();await loadInvitations()}catch(err){msg.innerHTML='<div class="error">'+esc(err.message)+'</div>'}});
 document.querySelector('#users').addEventListener('click',async e=>{const b=e.target.closest('button[data-action]');if(!b)return;const id=b.dataset.id;try{if(b.dataset.action==='extend'){const reason=prompt('Motivo da prorrogação (obrigatório):');if(!reason||!reason.trim())return;await api('/api/admin/users/'+encodeURIComponent(id)+'/extend',{method:'POST',body:JSON.stringify({days:30,reason:reason.trim()})})}else if(b.dataset.action==='toggle'){const active=b.dataset.status==='active';const reason=prompt(active?'Motivo da desativação:':'Motivo da reativação:');if(!reason||!reason.trim())return;await api('/api/admin/users/'+encodeURIComponent(id)+'/status',{method:'POST',body:JSON.stringify({status:active?'disabled':'active',reason:reason.trim()})})}else if(b.dataset.action==='reset'){const d=await api('/api/admin/users/'+encodeURIComponent(id)+'/reset-link',{method:'POST',body:JSON.stringify({})});document.querySelector('#admin-message').innerHTML='<div class="success">Link de redefinição (válido por 1 hora):<pre>'+esc(d.reset_url)+'</pre><button id="copy-reset" type="button" class="secondary">Copiar link</button></div>';document.querySelector('#copy-reset').onclick=async()=>{try{await navigator.clipboard.writeText(d.reset_url)}catch{}}}await loadUsers();await loadNotifications()}catch(err){alert(err.message)}})
-document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loadNotifications()});loadUsers();loadNotifications();
+document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loadNotifications();loadInvitations()});loadUsers();loadNotifications();loadInvitations();
 </script>"""
         return _base_page("Painel administrativo", render_template_string(inner, csrf=csrf), csrf)
 
@@ -662,6 +666,49 @@ document.querySelector('#refresh').addEventListener('click',()=>{loadUsers();loa
             _audit(con, actor, "invitation_created", None, f"email={invite_email or 'livre'};expires={_stamp(now + timedelta(days=INVITE_LIFETIME_DAYS))}")
         return jsonify({"ok": True, "invite_url": url_for("dds_register_invitation", token=token, _external=True),
                         "expires_at": _stamp(now + timedelta(days=INVITE_LIFETIME_DAYS))})
+
+    @app.get("/api/admin/invitations", endpoint="dds_admin_invitations")
+    def admin_invitations():
+        now = _now()
+        with _connect(db_path) as con:
+            rows = con.execute(
+                "SELECT id,email,expires_at,used_at,revoked_at,created_at FROM invitations ORDER BY created_at DESC LIMIT 100"
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            exp = _parse_stamp(item["expires_at"])
+            if item["used_at"]:
+                item["status"], item["status_label"] = "used", "Utilizado"
+            elif item["revoked_at"]:
+                item["status"], item["status_label"] = "revoked", "Revogado"
+            elif not exp or exp <= now:
+                item["status"], item["status_label"] = "expired", "Vencido"
+            else:
+                item["status"], item["status_label"] = "pending", "Pendente"
+            item["expires_label"] = exp.strftime("%d/%m/%Y %H:%M UTC") if exp else "—"
+            result.append(item)
+        return jsonify({"invitations": result})
+
+    @app.post("/api/admin/invitations/<invite_id>/revoke", endpoint="dds_admin_revoke_invitation")
+    def admin_revoke_invitation(invite_id: str):
+        body = request.get_json(silent=True) or {}
+        reason = str(body.get("reason", "")).strip()
+        if not reason:
+            return jsonify({"error": "Informe o motivo da revogação."}), 400
+        now = _stamp()
+        actor = session["user_id"]
+        with _connect(db_path) as con:
+            row = con.execute("SELECT id,used_at,revoked_at FROM invitations WHERE id=?", (invite_id,)).fetchone()
+            if not row:
+                return jsonify({"error": "Convite não encontrado."}), 404
+            if row["used_at"]:
+                return jsonify({"error": "Esse convite já foi utilizado e não pode ser revogado."}), 409
+            if row["revoked_at"]:
+                return jsonify({"ok": True})
+            con.execute("UPDATE invitations SET revoked_at=? WHERE id=?", (now, invite_id))
+            _audit(con, actor, "invitation_revoked", None, f"invitation_id={invite_id};reason={reason}")
+        return jsonify({"ok": True})
 
     @app.post("/api/admin/users/<user_id>/extend", endpoint="dds_admin_extend_trial")
     def admin_extend_trial(user_id: str):
