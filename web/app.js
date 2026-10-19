@@ -218,14 +218,16 @@ $('bulk-all-topics').addEventListener('change',e=>bulkTopicBoxes().forEach(c=>c.
 bulkShiftBoxes().forEach(c=>c.addEventListener('change',()=>{$('bulk-all-shifts').checked=bulkShiftBoxes().every(x=>x.checked)}));
 bulkUnitBoxes().forEach(c=>c.addEventListener('change',()=>{$('bulk-all-units').checked=bulkUnitBoxes().every(x=>x.checked)}));
 function closeBulkModal(){$('bulk-modal').classList.add('hidden')}
-$('bulk-generate-open').addEventListener('click',()=>{
+function openBulkModal(){
  clearError();
  if(!state.topics.length&&!$('topic').value.trim()){showError('Informe um tema ou cadastre temas na biblioteca antes de gerar DDS em massa.');$('topic').focus();return}
  if(!state.topics.length&&!$('content').value.trim()){showError('Pesquise ou escreva o conteúdo antes de gerar DDS em massa.');$('content').focus();return}
  if(!state.employees.length){showError('Importe a planilha de colaboradores antes de gerar DDS em massa.');return}
  renderBulkTopics();
  $('bulk-modal').classList.remove('hidden');
-});
+}
+$('bulk-generate-open')?.addEventListener('click',openBulkModal);
+$('bulk-generate-sidebar')?.addEventListener('click',openBulkModal);
 $('bulk-close').addEventListener('click',closeBulkModal);$('bulk-cancel').addEventListener('click',closeBulkModal);
 $('bulk-modal').addEventListener('click',e=>{if(e.target===$('bulk-modal'))closeBulkModal()});
 $('bulk-generate-confirm').addEventListener('click',async()=>{
