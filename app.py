@@ -41,7 +41,7 @@ SITE_ALIASES = {
     'TPS 2 TERMINAL': 'GIG', 'TPS-2 TERMINAL': 'GIG', 'TERMINAL TPS2': 'GIG',
 }
 SHIFTS = ['DIURNO', 'VESPERTINO', 'NOTURNO']
-UNIT_SUPERVISORS = {'UNITED': 'Wilker Maria', 'GATE GOURMET': 'Márcia Faustino', 'TECA': 'Pedro Paulo', 'GIG': 'A confirmar'}
+UNIT_SUPERVISORS = {'UNITED': 'WILKER MARIA', 'GATE GOURMET': 'Márcia Faustino', 'TECA': 'Pedro Paulo', 'GIG': 'A confirmar'}
 SUPERVISORS = {
     'NOTURNO': ['Maria do Socorro'],
     'DIURNO': ['ORLANDO BARBOSA', 'EVELYN MONTOVANI'],
