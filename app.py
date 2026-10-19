@@ -102,9 +102,46 @@ def protect_local_mutations():
     return None
 
 
+def persistent_storage_available() -> bool:
+    """Confirm the hosted data directory is an actual mounted volume."""
+    if not HOSTED_MODE:
+        return True
+    configured = os.environ.get('DDS_DATA_DIR', '').strip()
+    if not configured:
+        return False
+    target = Path(configured).resolve()
+    try:
+        for entry in Path('/proc/self/mountinfo').read_text(encoding='utf-8').splitlines():
+            fields = entry.split(' - ', 1)[0].split()
+            if len(fields) < 5:
+                continue
+            mountpoint = fields[4].replace(r'\040', ' ').replace(r'\011', chr(9)).replace(r'\134', chr(92))
+            if Path(mountpoint).resolve() == target:
+                return True
+    except (OSError, ValueError):
+        return False
+    return False
+
+
+def storage_status() -> dict:
+    persistent = persistent_storage_available()
+    if not HOSTED_MODE:
+        label = 'Dados salvos neste computador.'
+    elif persistent:
+        label = 'Armazenamento persistente do servidor.'
+    else:
+        label = 'Cópia automática neste navegador; não compartilhada entre dispositivos.'
+    return {
+        'storage_scope': 'server' if HOSTED_MODE else 'local',
+        'persistent_storage_configured': persistent,
+        'storage_label': label,
+    }
+
+
 @app.get('/healthz')
 def healthz():
-    return jsonify({'ok': True, 'service': 'Gerador de DDS', 'hosted': HOSTED_MODE})
+    return jsonify({'ok': True, 'service': 'Gerador de DDS', 'hosted': HOSTED_MODE,
+                    'persistent_storage_configured': persistent_storage_available()})
 
 
 def normalize(value: Any) -> str:
@@ -1075,7 +1112,7 @@ def split_content(content: str) -> list[tuple[str,bool]]:
     return entries
 
 
-def draw_content(page, content: str) -> bool:
+def draw_content(page, content: str, writer: fitz.TextWriter | None = None) -> bool:
     # Text is written only inside the original Objective/Content cell of the user's approved PDF.
     x0, x1 = 101.5, 566.0
     max_y = 299.5
@@ -1095,7 +1132,10 @@ def draw_content(page, content: str) -> bool:
             y += 0.8
         if not overflow:
             for x,y,line,font,size in commands:
-                page.insert_text((x,y),line,fontname=font,fontsize=size,color=(0,0,0),overlay=True)
+                if writer is not None:
+                    writer.append((x,y), line, font=fitz.Font(fontname=font), fontsize=size)
+                else:
+                    page.insert_text((x,y),line,fontname=font,fontsize=size,color=(0,0,0),overlay=True)
             return base < 8.1
     raise ValueError('O conteúdo ficou longo demais para o campo do formulário institucional. Resuma o texto antes de gerar o PDF.')
 
@@ -1126,7 +1166,7 @@ def _count_pdf_pages(path: Path) -> int:
         return len(check_doc)
 
 
-def centered_text(page, text: str, x0: float, x1: float, baseline: float, font='helv', size=8.0, min_size=6.0, color=(0,0,0)) -> float:
+def centered_text(page, text: str, x0: float, x1: float, baseline: float, font='helv', size=8.0, min_size=6.0, color=(0,0,0), writer: fitz.TextWriter | None = None) -> float:
     text=str(text or '')
     cur=size
     while cur>=min_size:
@@ -1137,7 +1177,10 @@ def centered_text(page, text: str, x0: float, x1: float, baseline: float, font='
         raise ValueError(f'Texto longo demais para o campo do formulário: {text[:70]}. Reduza o texto ou ajuste o cadastro antes de gerar o PDF.')
     width=fitz.get_text_length(text,fontname=font,fontsize=cur)
     x=x0+(x1-x0-width)/2
-    page.insert_text((x,baseline),text,fontname=font,fontsize=cur,color=color,overlay=True)
+    if writer is not None and color == (0, 0, 0):
+        writer.append((x,baseline), text, font=fitz.Font(fontname=font), fontsize=cur)
+    else:
+        page.insert_text((x,baseline),text,fontname=font,fontsize=cur,color=color,overlay=True)
     return cur
 
 
@@ -1151,14 +1194,15 @@ def update_attendance_page_counter(page, page_number: int, total_pages: int) -> 
     return None
 
 
-def finalize_pdf_pagination_and_footer(doc, selected_unit: str) -> None:
+def finalize_pdf_pagination_and_footer(doc, selected_unit: str, writers: dict[int, fitz.TextWriter] | None = None) -> None:
     """Add the mandatory notice and physical page counter in the original footer band."""
     total_pages = len(doc)
     for index, page in enumerate(doc, start=1):
+        writer = writers.get(index - 1) if writers else None
         centered_text(page, 'PROIBIDA a reprodução não autorizada', 22.3, 412.6, 813.1,
-                      font='helv', size=7.0, min_size=6.0)
+                      font='helv', size=7.0, min_size=6.0, writer=writer)
         centered_text(page, f'Página {index} de {total_pages}', 492.0, 568.0, 813.1,
-                      font='helv', size=7.0, min_size=5.8)
+                      font='helv', size=7.0, min_size=5.8, writer=writer)
 
 
 def prepare_attendance_pages(doc, layout: dict, required_rows: int) -> list[dict]:
@@ -1254,20 +1298,23 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     required_rows=len(chosen)+BLANK_ATTENDANCE_ROWS
     doc=fitz.open(TEMPLATE_PATH)
     roster_pages=prepare_attendance_pages(doc, layout, required_rows)
+    # Queue text per page: insert_text wraps existing streams on every call.
+    # Batching avoids repeated content-stream processing when many attendance rows are printed.
+    writers = {index: fitz.TextWriter(doc[index].rect) for index in range(len(doc))}
     p=doc[0]
     title_size=10.7
     title_left, title_right = 101.0, 568.0
     while title_size>7.0 and fitz.get_text_length(topic.upper(),fontname='tibo',fontsize=title_size)>title_right-title_left-4.0:
         title_size-=0.3
-    centered_text(p,topic.upper(),title_left,title_right,105.1,font='tibo',size=title_size,min_size=7.0)
-    shrunk=draw_content(p,content)
+    centered_text(p,topic.upper(),title_left,title_right,105.1,font='tibo',size=title_size,min_size=7.0,writer=writers[0])
+    shrunk=draw_content(p,content,writer=writers[0])
 
     # Fixed fields in the same cells as the supplied institutional document.
-    centered_text(p,work_site,504.0,568.0,318.1,font='helv',size=8.0,min_size=6.0)
+    centered_text(p,work_site,504.0,568.0,318.1,font='helv',size=8.0,min_size=6.0,writer=writers[0])
     turn_display={'DIURNO':'MANHÃ / DIURNO','VESPERTINO':'TARDE / VESPERTINO','NOTURNO':'MADRUGADA / NOTURNO'}[shift]
-    centered_text(p,turn_display,100.5,206.5,341.8,font='helv',size=7.8,min_size=6.0)
-    centered_text(p,duration,402.8,448.6,341.8,font='helv',size=8.0,min_size=6.0)
-    centered_text(p,display_date,504.0,568.0,341.8,font='helv',size=8.0,min_size=6.0)
+    centered_text(p,turn_display,100.5,206.5,341.8,font='helv',size=7.8,min_size=6.0,writer=writers[0])
+    centered_text(p,duration,402.8,448.6,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
+    centered_text(p,display_date,504.0,568.0,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
     # List each responsible person separately, numbered, within the existing responsible/instructor field.
     # Keep the institutional form unchanged and prevent names from being merged into one text line.
     supervisor_left, supervisor_right = 51.7, 270.0
@@ -1280,9 +1327,9 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
         row_baseline = (row_top + row_bottom) / 2 + 2.6
         # Number occupies its own narrow cell; the name is centered in the remaining cell.
         centered_text(p, f'{supervisor_index}.', supervisor_left, supervisor_left + 22.0,
-                      row_baseline, font='helv', size=7.2, min_size=6.0)
+                      row_baseline, font='helv', size=7.2, min_size=6.0, writer=writers[0])
         centered_text(p, supervisor_name, supervisor_left + 23.0, supervisor_right,
-                      row_baseline, font='helv', size=7.2, min_size=6.0)
+                      row_baseline, font='helv', size=7.2, min_size=6.0, writer=writers[0])
 
     # Populate the exact number of selected-shift rows plus five extraordinary blank slots.
     columns=layout['columns']
@@ -1295,8 +1342,9 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
             row_number+=1
             cy=float(row['center'])
             baseline=cy+2.9
+            page_writer = writers[page_info['page']]
             centered_text(pg,str(row_number),float(columns['number'][0]),float(columns['number'][1]),baseline,
-                          font='helv',size=7.8,min_size=6.0)
+                          font='helv',size=7.8,min_size=6.0,writer=page_writer)
             if row_number<=len(chosen):
                 employee=chosen[row_number-1]
                 name=str(employee.get('name','')).strip()
@@ -1307,12 +1355,14 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
                     name_size-=0.25
                 if fitz.get_text_length(name,fontname='helv',fontsize=name_size)>name_right-name_x:
                     raise ValueError(f'O nome “{name}” é longo demais para caber na linha do modelo institucional. Ajuste o cadastro ou utilize um nome abreviado aprovado pela liderança.')
-                pg.insert_text((name_x,baseline),name,fontname='helv',fontsize=name_size,color=(0,0,0),overlay=True)
+                page_writer.append((name_x,baseline), name, font=fitz.Font(fontname='helv'), fontsize=name_size)
             # Area and unit are prefilled on employee and extraordinary rows, exactly as requested.
-            centered_text(pg,'LIMPEZA',float(columns['area'][0]),float(columns['area'][1]),baseline,font='helv',size=7.8,min_size=5.8)
-            centered_text(pg,work_site,float(columns['unit'][0]),float(columns['unit'][1]),baseline,font='helv',size=7.8,min_size=5.8)
+            centered_text(pg,'LIMPEZA',float(columns['area'][0]),float(columns['area'][1]),baseline,font='helv',size=7.8,min_size=5.8,writer=page_writer)
+            centered_text(pg,work_site,float(columns['unit'][0]),float(columns['unit'][1]),baseline,font='helv',size=7.8,min_size=5.8,writer=page_writer)
 
-    finalize_pdf_pagination_and_footer(doc,work_site)
+    finalize_pdf_pagination_and_footer(doc,work_site,writers=writers)
+    for page_index, writer in writers.items():
+        writer.write_text(doc[page_index], color=(0,0,0), overlay=True)
     emission_id=uuid.uuid4().hex[:8]
     generated_at=datetime.now()
     date_label=display_date.replace('/','-') if display_date else 'SEM_DATA'
@@ -1357,14 +1407,15 @@ def index():
 
 @app.get('/api/health')
 def health():
-    return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.2.2-web-ready' if HOSTED_MODE else '1.2.2-local'})
+    return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.2.13-web-ready' if HOSTED_MODE else '1.2.13-local','persistent_storage_configured':persistent_storage_available()})
 
 @app.get('/api/state')
 def state_endpoint():
     state=read_state()
     return jsonify({'employees':state['employees'],'history':state['history'],'settings':state['settings'],
                     'unit_code':UNIT_CODE,'work_sites':WORK_SITES,'units':WORK_SITES,
-                    'shifts':SHIFTS,'supervisors':SUPERVISORS,'unit_supervisors':UNIT_SUPERVISORS,'capacity':template_capacity(),'blank_attendance_rows':BLANK_ATTENDANCE_ROWS,'capacity_mode':'dynamic'})
+                    'shifts':SHIFTS,'supervisors':SUPERVISORS,'unit_supervisors':UNIT_SUPERVISORS,'capacity':template_capacity(),'blank_attendance_rows':BLANK_ATTENDANCE_ROWS,'capacity_mode':'dynamic',
+                    **storage_status()})
 
 def backup_payload() -> dict:
     state = read_state()
@@ -1372,7 +1423,7 @@ def backup_payload() -> dict:
     return {
         'format': 'gerador-dds-backup',
         'backup_version': 1,
-        'app_version': '1.2.2',
+        'app_version': '1.2.13',
         'exported_at': datetime.now().isoformat(timespec='seconds'),
         'state': state,
         'custom_topics': custom_topics,
@@ -1540,14 +1591,9 @@ def research_topic():
 def list_topics():
     rows=topic_rows(request.args.get('q',''),request.args.get('category',''))
     categories=sorted({row['category'] for row in topic_rows()},key=str.casefold)
-    storage_configured=bool(str(os.environ.get('DDS_DATA_DIR','')).strip())
-    if HOSTED_MODE:
-        storage_label='Banco compartilhado no servidor' if storage_configured else 'Banco no servidor — persistência a confirmar'
-    else:
-        storage_label='Banco local deste computador'
+    storage = storage_status()
     return jsonify({'topics':rows,'categories':categories,'count':len(rows),
-                    'offline':not HOSTED_MODE,'storage_scope':'server' if HOSTED_MODE else 'local',
-                    'storage_label':storage_label,'persistent_storage_configured':storage_configured})
+                    'offline':not HOSTED_MODE,**storage})
 
 @app.post('/api/topics')
 def create_topic():
