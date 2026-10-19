@@ -1,5 +1,6 @@
 'use strict';
 const state = {employees:[],history:[],units:[],work_sites:[],unit_code:'GIG',shifts:[],supervisors:{},capacity:107,topics:[],topicCategories:[]};
+const BROWSER_BACKUP_KEY = 'gerador-dds.browser-backup.v1';
 const $ = (id)=>document.getElementById(id);
 const dayISO = ()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const esc = (v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -14,7 +15,33 @@ let editingEmployeeId = null;
 function toast(message,type='success'){const node=document.createElement('div');node.className=`toast ${type==='error'?'error':type==='success'?'success':''}`;node.textContent=message;$('toast-region').appendChild(node);setTimeout(()=>node.remove(),4800)}
 function showError(message){$('form-error').textContent=message;$('form-error').classList.remove('hidden')}
 function clearError(){$('form-error').textContent='';$('form-error').classList.add('hidden')}
-async function api(url,options={}){const response=await fetch(url,options);let body={};try{body=await response.json()}catch{}if(!response.ok)throw new Error(body.error||`Falha na solicitação (${response.status}).`);return body}
+function readBrowserBackup(){
+ try{
+  const raw=localStorage.getItem(BROWSER_BACKUP_KEY);if(!raw)return null;
+  const backup=JSON.parse(raw);
+  return backup?.format==='gerador-dds-backup'&&backup?.backup_version===1&&backup?.state&&Array.isArray(backup.state.employees)?backup:null;
+ }catch(_){return null}
+}
+async function refreshBrowserBackup(){
+ try{
+  const response=await fetch('/api/backup-data',{cache:'no-store',headers:{'Accept':'application/json'}});
+  if(!response.ok)return false;
+  const backup=await response.json();
+  if(backup?.format!=='gerador-dds-backup'||backup?.backup_version!==1||!Array.isArray(backup?.state?.employees))return false;
+  localStorage.setItem(BROWSER_BACKUP_KEY,JSON.stringify(backup));
+  return true;
+ }catch(err){
+  console.warn('Não foi possível atualizar a cópia de segurança deste navegador.',err);
+  return false;
+ }
+}
+async function api(url,options={}){
+ const response=await fetch(url,options);let body={};try{body=await response.json()}catch{}
+ if(!response.ok)throw new Error(body.error||`Falha na solicitação (${response.status}).`);
+ const method=String(options.method||'GET').toUpperCase();
+ if(['POST','PUT','PATCH','DELETE'].includes(method))await refreshBrowserBackup();
+ return body;
+}
 
 let topicSearchTimer=null;
 function resetTopicEditor(){
@@ -295,7 +322,7 @@ $('confirm-generate-btn').addEventListener('click',async()=>{
   state.history.unshift(response.metadata);state.history=state.history.slice(0,100);renderHistory();
   toast('PDF gerado. Confira o documento antes de imprimir.');
  }catch(err){showError(err.message);toast(err.message,'error')}
- finally{button.disabled=false;button.innerHTML='<span>Gerar PDF institucional</span><span class="arrow">→</span>'}
+ finally{button.disabled=false;button.innerHTML='<span>GERAR DDS</span><span class="arrow">→</span>'}
 });
 ['close-pdf-modal','close-pdf-modal-2'].forEach(id=>$(id).addEventListener('click',()=>$('pdf-modal').classList.add('hidden')));$('pdf-modal').addEventListener('click',e=>{if(e.target===$('pdf-modal'))$('pdf-modal').classList.add('hidden')});document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('pdf-modal').classList.add('hidden');closePreflight();closeEmployeeEdit()}});
 
@@ -366,7 +393,7 @@ $('backup-file').addEventListener('change',async e=>{
  }catch(err){result.classList.remove('hidden');result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
 });
 
-function renderConfig(){const shiftOrder=['DIURNO','VESPERTINO','NOTURNO'];$('supervisor-table').innerHTML=shiftOrder.map(s=>`<div class="supervisor-row"><b>${esc(shiftLabel(s))}</b><span>${esc((state.supervisors[s]||[]).join(' e '))}</span></div>`).join('');$('unit-grid').innerHTML=(state.work_sites||state.units||['GIG','TECA','UNITED','GATE GOURMET']).map((u,i)=>`<div class="unit-chip"><span>${i+1}</span>${esc(u)}</div>`).join('');const unitSupervisors=[['UNITED','Wilker Maria'],['GATE GOURMET','Márcia Faustino'],['TECA · Terminal de Carga','Pedro Paulo'],['GIG','Responsável a confirmar']];const target=$('unit-supervisor-table');if(target)target.innerHTML=unitSupervisors.map(([unit,name])=>`<div class="supervisor-row"><b>${esc(unit)}</b><span>${esc(name)}</span></div>`).join('')}
+function renderConfig(){const shiftOrder=['DIURNO','VESPERTINO','NOTURNO'];$('supervisor-table').innerHTML=shiftOrder.map(s=>`<div class="supervisor-row"><b>${esc(shiftLabel(s))}</b><span>${esc((state.supervisors[s]||[]).join(' e '))}</span></div>`).join('');$('unit-grid').innerHTML=(state.work_sites||state.units||['GIG','TECA','UNITED','GATE GOURMET']).map((u,i)=>`<div class="unit-chip"><span>${i+1}</span>${esc(u)}</div>`).join('');const unitSupervisors=[['UNITED','WILKER MARIA'],['GATE GOURMET','Márcia Faustino'],['TECA · Terminal de Carga','Pedro Paulo'],['GIG','Responsável a confirmar']];const target=$('unit-supervisor-table');if(target)target.innerHTML=unitSupervisors.map(([unit,name])=>`<div class="supervisor-row"><b>${esc(unit)}</b><span>${esc(name)}</span></div>`).join('')}
 
 async function updateEnvironmentStatus(){
  const tag=$('environment-status');if(!tag)return;
@@ -387,5 +414,34 @@ async function updateEnvironmentStatus(){
 }
 window.addEventListener('online',updateEnvironmentStatus);
 window.addEventListener('offline',updateEnvironmentStatus);
-async function loadState(showToast=false){try{const r=await api('/api/state');Object.assign(state,r);refreshSummary();renderRoster();renderHistory();renderConfig();if(showToast)toast('Dados atualizados.')}catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}}
-updateEnvironmentStatus();loadState();loadTopics();
+function renderStorageStatus(info){
+ const card=$('sidebar-status');if(!card||!info)return;
+ const text=card.querySelector('small'),icon=card.querySelector('.nav-icon');
+ if(text)text.textContent=info.storage_label||'Estado do armazenamento não confirmado.';
+ card.classList.toggle('storage-warning',!info.persistent_storage_configured);
+ card.setAttribute('aria-label',info.persistent_storage_configured?'Dados da aplicação salvos':'Cópia de segurança deste navegador');
+ if(icon)icon.textContent=info.persistent_storage_configured?'✓':'↻';
+}
+async function loadState(showToast=false){
+ try{
+  let r=await api('/api/state');
+  if(!r.employees?.length){
+   const backup=readBrowserBackup();
+   if(backup?.state?.employees?.length){
+    const response=await fetch('/api/restore-backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)});
+    let body={};try{body=await response.json()}catch{}
+    if(response.ok){
+     r=await api('/api/state');
+     toast(`Lista recuperada automaticamente da cópia deste navegador: ${body.employees} colaboradores.`);
+    }else{
+     toast(`Há uma cópia de segurança neste navegador, mas a recuperação falhou: ${body.error||response.statusText}`,'error');
+    }
+   }
+  }
+  Object.assign(state,r);renderStorageStatus(r);refreshSummary();renderRoster();renderHistory();renderConfig();
+  if(state.employees.length)void refreshBrowserBackup();
+  if(showToast)toast('Dados atualizados.');
+ }catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}
+}
+async function initializeApp(){updateEnvironmentStatus();await loadState();await loadTopics()}
+initializeApp();
