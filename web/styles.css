@@ -360,3 +360,6 @@
 .shift-picker-divider{height:1px;background:#e1e8f0;margin:5px 4px}
 .shift-picker-mode{font-weight:550}
 .shift-native-select{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;clip-path:inset(50%)!important}
+
+/* Opção única para reunir colaboradores de todos os turnos */
+.shift-picker-option[data-shift-option="TODOS"]{font-weight:750;color:#145da0}
