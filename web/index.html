@@ -51,20 +51,19 @@
                     <button type="button" class="shift-picker-trigger" id="shift-picker-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Escolher turno e participantes">
                       <span id="shift-picker-label">Selecione o turno</span><span class="shift-picker-chevron" aria-hidden="true">▾</span>
                     </button>
-                    <div class="shift-picker-menu hidden" id="shift-picker-menu" role="listbox" aria-label="Turno e participantes">
+                    <div class="shift-picker-menu hidden" id="shift-picker-menu" role="listbox" aria-label="Selecionar turno ou todos os colaboradores">
                       <button type="button" class="shift-picker-option" role="option" data-shift-option="DIURNO"><span>Manhã (diurno)</span><span class="shift-option-check" aria-hidden="true">✓</span></button>
                       <button type="button" class="shift-picker-option" role="option" data-shift-option="VESPERTINO"><span>Tarde (vespertino)</span><span class="shift-option-check" aria-hidden="true">✓</span></button>
                       <button type="button" class="shift-picker-option" role="option" data-shift-option="NOTURNO"><span>Madrugada (noturno)</span><span class="shift-option-check" aria-hidden="true">✓</span></button>
                       <div class="shift-picker-divider" role="separator"></div>
-                      <button type="button" class="shift-picker-option shift-picker-mode" id="shift-use-all-option" aria-pressed="true"><span>Utilizar todos os colaboradores do turno</span><span class="shift-option-check" aria-hidden="true">✓</span></button>
-                      <button type="button" class="shift-picker-option shift-picker-mode" id="shift-manual-option" aria-pressed="false"><span>Escolher colaboradores manualmente</span><span class="shift-option-check" aria-hidden="true">✓</span></button>
+                      <button type="button" class="shift-picker-option" role="option" data-shift-option="TODOS"><span>TODOS OS COLABORADORES</span><span class="shift-option-check" aria-hidden="true">✓</span></button>
                     </div>
                   </div>
                   <select id="shift" class="shift-native-select" required aria-label="Turno obrigatório">
-                    <option value="">Selecione o turno</option><option value="DIURNO">Manhã (diurno)</option><option value="VESPERTINO">Tarde (vespertino)</option><option value="NOTURNO">Madrugada (noturno)</option>
+                    <option value="">Selecione o turno</option><option value="DIURNO">Manhã (diurno)</option><option value="VESPERTINO">Tarde (vespertino)</option><option value="NOTURNO">Madrugada (noturno)</option><option value="TODOS">TODOS OS COLABORADORES</option>
                   </select>
                   <input type="checkbox" id="use-all-shift-employees" checked hidden />
-                  <small id="employee-selection-hint" class="field-hint">Escolha o turno e, no mesmo menu, defina os participantes.</small>
+                  <small id="employee-selection-hint" class="field-hint">Escolha um turno ou todos os colaboradores.</small>
                 </div>
                 <label class="field"><span>Data do DDS</span><input id="dds-date" type="date" /><small class="field-hint">Opcional. Se ficar em branco, o campo de data do PDF também ficará em branco.</small></label>
                 <label class="field"><span>Duração prevista</span><select id="duration"><option value="01:00" selected>01:00</option></select></label>
