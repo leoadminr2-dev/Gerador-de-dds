@@ -1295,6 +1295,10 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
                 or canonical_site(employee.get('operational_unit'))
                 or canonical_site(employee.get('sector')))
     chosen=[e for e in same_shift if normalize(employee_site(e))==normalize(work_site)]
+    requested_ids=payload.get('employee_ids')
+    if isinstance(requested_ids,list) and requested_ids:
+        requested_set={str(item) for item in requested_ids}
+        chosen=[e for e in chosen if str(e.get('id','')) in requested_set]
     if not chosen:
         raise ValueError('Nenhum colaborador corresponde ao turno e à unidade selecionados. O PDF não foi emitido para evitar uma lista incorreta. Confira os filtros e os cadastros.')
     layout=json.loads(LAYOUT_PATH.read_text(encoding='utf-8'))
