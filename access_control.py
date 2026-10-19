@@ -504,8 +504,10 @@ def install_account_access(app, data_dir: Path) -> None:
         email = _email(request.form.get("email"))
         password = request.form.get("password", "")
         remote = request.remote_addr or "unknown"
-        if not EMAIL_RE.match(email) or _login_limited(db_path, email, remote):
-            _record_login_failure(db_path, email, remote)
+        if not EMAIL_RE.match(email):
+            return redirect(url_for("dds_login", error="invalid"))
+        if _login_limited(db_path, email, remote):
+            # Do not grow the attempts table with an unbounded row for every throttled request.
             return redirect(url_for("dds_login", error="invalid"))
         with _connect(db_path) as con:
             row = con.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
