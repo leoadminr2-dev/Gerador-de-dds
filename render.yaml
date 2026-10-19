@@ -19,7 +19,7 @@ services:
         value: /var/data
       # Conta individual por pessoa; a inicialização falha se os segredos obrigatórios faltarem.
       - key: DDS_ACCOUNT_AUTH
-        value: "1"
+        value: "0"  # Ativar somente após configurar os segredos obrigatórios no Render.
       - key: DDS_ADMIN_EMAIL
         sync: false
       - key: DDS_SESSION_SECRET
