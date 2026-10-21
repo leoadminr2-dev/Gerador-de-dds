@@ -1,13 +1,15 @@
 from __future__ import annotations
 import json, math, os, re, sqlite3, unicodedata, uuid, traceback, html, time, hmac
 from contextlib import closing
+from contextvars import ContextVar
 from datetime import datetime, date
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, quote_plus, urlparse, unquote
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from html.parser import HTMLParser
-from flask import Flask, jsonify, request, send_from_directory, abort
+from flask import Flask, jsonify, request, send_from_directory, abort, g
 from werkzeug.utils import secure_filename
 import fitz
 from openpyxl import load_workbook
@@ -25,7 +27,7 @@ else:
     DATA_DIR = Path(__file__).resolve().parent / 'data'
 OUTPUT_DIR = DATA_DIR / 'outputs'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+_output_dir().mkdir(parents=True, exist_ok=True)
 STATE_PATH = DATA_DIR / 'state.json'
 TOPICS_DB_PATH = DATA_DIR / 'temas_offline.db'
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -58,14 +60,83 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_BYTES
 HOSTED_MODE = os.environ.get('DDS_HOSTED', '').strip() == '1'
 ADMIN_USER = os.environ.get('DDS_ADMIN_USER', 'admin')
 ADMIN_PASSWORD = os.environ.get('DDS_ADMIN_PASSWORD', '')
-if HOSTED_MODE and len(ADMIN_PASSWORD) < 16:
+CENTRAL_AUTH_ENABLED = HOSTED_MODE and os.environ.get('DDS_CENTRAL_AUTH', '').strip() == '1'
+if HOSTED_MODE and not CENTRAL_AUTH_ENABLED and len(ADMIN_PASSWORD) < 16:
     raise RuntimeError('Hospedagem bloqueada: configure DDS_ADMIN_PASSWORD com pelo menos 16 caracteres antes de iniciar.')
 
+# Separate every hosted customer into an isolated directory, even when requests run concurrently.
+_CURRENT_TENANT_ID: ContextVar[str | None] = ContextVar('dds_current_tenant_id', default=None)
+
+def _tenant_data_dir() -> Path:
+    tenant_id = _CURRENT_TENANT_ID.get()
+    if HOSTED_MODE and CENTRAL_AUTH_ENABLED and tenant_id:
+        if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', tenant_id, re.I):
+            raise RuntimeError('Identificador de conta inválido.')
+        base = DATA_DIR / 'tenants' / tenant_id.lower()
+    else:
+        base = DATA_DIR
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+def _state_path() -> Path:
+    return _tenant_data_dir() / 'state.json'
+
+def _topics_db_path() -> Path:
+    return _tenant_data_dir() / 'temas_offline.db'
+
+def _output_dir() -> Path:
+    output = _tenant_data_dir() / 'outputs'
+    output.mkdir(parents=True, exist_ok=True)
+    return output
+
+def _request_is_public_asset(path: str) -> bool:
+    if path in ('/', '/healthz', '/api/health'):
+        return True
+    if path.startswith('/api/'):
+        return False
+    if path.startswith('/static/'):
+        return True
+    return Path(path).suffix.lower() in {'.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.woff', '.woff2', '.ttf', '.webmanifest'}
+
+def _authorize_central_request():
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.lower().startswith('bearer '):
+        return jsonify({'error': 'Entre na sua conta da Central para acessar o Gerador de DDS.'}), 401
+    supabase_url = os.environ.get('SUPABASE_URL', '').strip().rstrip('/')
+    publishable_key = os.environ.get('SUPABASE_ANON_KEY', '').strip()
+    if not supabase_url or not publishable_key:
+        app.logger.error('DDS central auth is enabled but SUPABASE_URL/SUPABASE_ANON_KEY are missing')
+        return jsonify({'error': 'A autenticação central não está configurada no servidor.'}), 503
+    body = json.dumps({'action': 'authorize', 'app_slug': 'gerador-dds'}).encode('utf-8')
+    req = Request(
+        supabase_url + '/functions/v1/gerador-dds-access',
+        data=body,
+        headers={'Authorization': auth_header, 'apikey': publishable_key, 'Content-Type': 'application/json'},
+        method='POST',
+    )
+    try:
+        with urlopen(req, timeout=8) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except HTTPError as exc:
+        try:
+            payload = json.loads(exc.read().decode('utf-8'))
+        except Exception:
+            payload = {}
+        return jsonify({'error': payload.get('reason') or payload.get('error') or 'Acesso ao aplicativo não autorizado.'}), (401 if exc.code == 401 else 403 if exc.code in (400, 403, 404) else 503)
+    except (URLError, TimeoutError, OSError, ValueError) as exc:
+        app.logger.warning('DDS central authorization unavailable: %s', type(exc).__name__)
+        return jsonify({'error': 'Não foi possível validar a licença agora. Tente novamente quando o serviço central estiver disponível.'}), 503
+    if not payload.get('allowed'):
+        return jsonify({'error': payload.get('reason') or 'A licença do Gerador de DDS não está ativa.'}), 403
+    user_id = str(payload.get('user_id') or '')
+    if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', user_id, re.I):
+        return jsonify({'error': 'A Central retornou uma identidade inválida.'}), 503
+    g.dds_tenant_context_token = _CURRENT_TENANT_ID.set(user_id.lower())
+    return None
 
 @app.before_request
 def require_hosted_admin_auth():
-    # Hosted instances require HTTP Basic Auth on the whole application; only health checks are public.
-    if not HOSTED_MODE or request.path == '/healthz':
+    if not HOSTED_MODE or CENTRAL_AUTH_ENABLED or request.path == '/healthz':
         return None
     auth = request.authorization
     username = auth.username if auth else ''
@@ -76,6 +147,21 @@ def require_hosted_admin_auth():
         return jsonify({'error': 'Acesso restrito. Entre com as credenciais administrativas.'}), 401, {'WWW-Authenticate': 'Basic realm="Gerador de DDS", charset="UTF-8"'}
     return None
 
+@app.before_request
+def require_central_dds_license():
+    if not CENTRAL_AUTH_ENABLED or _request_is_public_asset(request.path):
+        return None
+    return _authorize_central_request()
+
+@app.teardown_request
+def cleanup_central_tenant_context(_error=None):
+    token = getattr(g, 'dds_tenant_context_token', None)
+    if token is not None:
+        try:
+            _CURRENT_TENANT_ID.reset(token)
+        except (RuntimeError, ValueError):
+            pass
+        g.dds_tenant_context_token = None
 
 @app.before_request
 def protect_local_mutations():
@@ -713,7 +799,7 @@ def _draft_from_sources(topic: str, sources: list[dict]) -> str:
             f'MENSAGEM FINAL\nUse informações verificadas, siga o procedimento aplicável e comunique riscos antes que causem um acidente.')[:2600]
 
 def init_topics_db() -> None:
-    with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+    with closing(sqlite3.connect(_topics_db_path())) as con:
         con.execute('''CREATE TABLE IF NOT EXISTS topics (
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL COLLATE NOCASE UNIQUE,
             category TEXT NOT NULL, objective TEXT NOT NULL, content TEXT NOT NULL,
@@ -784,7 +870,7 @@ def topic_rows(q: str = '', category: str = '') -> list[dict]:
     if category.strip() and category.strip()!='TODAS':
         sql+=' AND category=?'; args.append(category.strip())
     sql+=' ORDER BY category COLLATE NOCASE,title COLLATE NOCASE'
-    with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+    with closing(sqlite3.connect(_topics_db_path())) as con:
         con.row_factory=sqlite3.Row
         rows=[dict(row) for row in con.execute(sql,args).fetchall()]
     for row in rows:
@@ -792,9 +878,9 @@ def topic_rows(q: str = '', category: str = '') -> list[dict]:
     return rows
 
 def read_state() -> dict:
-    if not STATE_PATH.exists(): return default_state()
+    if not _state_path().exists(): return default_state()
     try:
-        data=json.loads(STATE_PATH.read_text(encoding='utf-8'))
+        data=json.loads(_state_path().read_text(encoding='utf-8'))
         if not isinstance(data,dict): return default_state()
         data.setdefault('employees',[]); data.setdefault('history',[]); data.setdefault('settings',default_state()['settings'])
         # Version 1.1.3: approved operational units are GIG, TECA, UNITED and GATE GOURMET.
@@ -840,16 +926,16 @@ def read_state() -> dict:
         return data
     except Exception:
         # Never silently overwrite a corrupt state file. Keep a backup and recover safely.
-        backup=STATE_PATH.with_suffix('.corrupt.json')
-        try: STATE_PATH.replace(backup)
+        backup=_state_path().with_suffix('.corrupt.json')
+        try: _state_path().replace(backup)
         except Exception: pass
         return default_state()
 
 
 def write_state(state: dict) -> None:
-    temp=STATE_PATH.with_suffix('.tmp')
+    temp=_state_path().with_suffix('.tmp')
     temp.write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding='utf-8')
-    temp.replace(STATE_PATH)
+    temp.replace(_state_path())
 
 
 def clean_employee(raw: dict) -> dict:
@@ -1375,7 +1461,7 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     generated_at=datetime.now()
     date_label=display_date.replace('/','-') if display_date else 'SEM_DATA'
     fname=f'DDS_{date_label}_{slugify(topic)}_{shift.lower()}_{generated_at.strftime("%H%M%S")}_{emission_id}.pdf'
-    target=OUTPUT_DIR/fname
+    target=_output_dir()/fname
     temp_target=target.with_name(target.stem + '.tmp.pdf')
     try:
         doc.save(temp_target,garbage=4,deflate=True,clean=True)
@@ -1415,7 +1501,7 @@ def index():
 
 @app.get('/api/health')
 def health():
-    return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.2.13-web-ready' if HOSTED_MODE else '1.2.13-local','persistent_storage_configured':persistent_storage_available()})
+    return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.3.0-web-ready' if HOSTED_MODE else '1.3.0-local','central_auth_required':CENTRAL_AUTH_ENABLED,'persistent_storage_configured':persistent_storage_available()})
 
 @app.get('/api/state')
 def state_endpoint():
@@ -1431,7 +1517,7 @@ def backup_payload() -> dict:
     return {
         'format': 'gerador-dds-backup',
         'backup_version': 1,
-        'app_version': '1.2.13',
+        'app_version': '1.3.0',
         'exported_at': datetime.now().isoformat(timespec='seconds'),
         'state': state,
         'custom_topics': custom_topics,
@@ -1498,14 +1584,14 @@ def restore_backup_data():
                                   str(raw.get('created_at') or datetime.now().isoformat(timespec='seconds')),
                                   str(raw.get('updated_at') or datetime.now().isoformat(timespec='seconds'))))
     # Preserve a recoverable snapshot before replacing any live data.
-    backups_dir = DATA_DIR / 'backups'
+    backups_dir = _tenant_data_dir() / 'backups'
     backups_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:4]
     (backups_dir / f'antes_restauracao_{stamp}.json').write_text(
         json.dumps(backup_payload(), ensure_ascii=False, indent=2), encoding='utf-8')
     init_topics_db()
     try:
-        with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+        with closing(sqlite3.connect(_topics_db_path())) as con:
             con.execute('BEGIN')
             con.execute("DELETE FROM topics WHERE source='cadastrado pelo usuário'")
             for title, category, objective, content, created_at, updated_at in normalized_topics:
@@ -1542,7 +1628,7 @@ def research_topic():
             objective=f'Reforçar práticas seguras relacionadas a {title.lower()}, com base nas fontes públicas listadas.'
             now=datetime.now().isoformat(timespec='seconds')
             source_value='WEB-PESQUISADO:'+json.dumps(sources,ensure_ascii=False)
-            with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+            with closing(sqlite3.connect(_topics_db_path())) as con:
                 existing=con.execute('SELECT id FROM topics WHERE title=? COLLATE NOCASE',(title,)).fetchone()
                 if existing:
                     con.execute('UPDATE topics SET category=?,objective=?,content=?,source=?,updated_at=? WHERE id=?',(category,objective,content,source_value,now,existing[0]))
@@ -1582,7 +1668,7 @@ def research_topic():
     ]
     source_value='OFFLINE-DRAFT:'+json.dumps(sources,ensure_ascii=False)
     try:
-        with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+        with closing(sqlite3.connect(_topics_db_path())) as con:
             existing=con.execute('SELECT id FROM topics WHERE title=? COLLATE NOCASE',(title,)).fetchone()
             if existing:
                 con.execute('UPDATE topics SET category=?,objective=?,content=?,source=?,updated_at=? WHERE id=?',(category,objective,content,source_value,now,existing[0]))
@@ -1623,7 +1709,7 @@ def create_topic():
     now=datetime.now().isoformat(timespec='seconds')
     init_topics_db()
     try:
-        with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+        with closing(sqlite3.connect(_topics_db_path())) as con:
             cur=con.execute('INSERT INTO topics(title,category,objective,content,source,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
                 (title,category,objective,content,'cadastrado pelo usuário',now,now))
             topic_id=cur.lastrowid
@@ -1653,7 +1739,7 @@ def edit_topic(topic_id):
     now=datetime.now().isoformat(timespec='seconds')
     init_topics_db()
     try:
-        with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+        with closing(sqlite3.connect(_topics_db_path())) as con:
             cur=con.execute('''UPDATE topics SET title=?,category=?,objective=?,content=?,source='cadastrado pelo usuário',updated_at=? WHERE id=?''',
                             (title,category,objective or f'Reforçar a prevenção relacionada a {title.lower()}.',content,now,topic_id))
             if cur.rowcount==0: return jsonify({'error':'Tema não encontrado.'}),404
@@ -1666,7 +1752,7 @@ def edit_topic(topic_id):
 @app.delete('/api/topics/<int:topic_id>')
 def delete_topic(topic_id):
     init_topics_db()
-    with closing(sqlite3.connect(TOPICS_DB_PATH)) as con:
+    with closing(sqlite3.connect(_topics_db_path())) as con:
         cur=con.execute("DELETE FROM topics WHERE id=? AND source='cadastrado pelo usuário'",(topic_id,))
         if cur.rowcount==0:
             return jsonify({'error':'Tema não encontrado ou faz parte da biblioteca inicial protegida.'}),404
@@ -1687,7 +1773,7 @@ def import_roster():
     state=read_state()
     # Preserve a timestamped local backup before replacing the current roster.
     if state.get('employees'):
-        backups=DATA_DIR/'backups'; backups.mkdir(parents=True,exist_ok=True)
+        backups=_tenant_data_dir()/'backups'; backups.mkdir(parents=True,exist_ok=True)
         stamp=datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+uuid.uuid4().hex[:4]
         (backups/f'colaboradores_{stamp}.json').write_text(json.dumps(state['employees'],ensure_ascii=False,indent=2),encoding='utf-8')
     # Deliberate replace, not append: each import becomes the current roster snapshot.
@@ -1754,7 +1840,7 @@ def generate():
     except Exception as exc:
         incident_id=uuid.uuid4().hex[:8]
         try:
-            with open(DATA_DIR/'dds_generation.log','a',encoding='utf-8') as log:
+            with open(_tenant_data_dir()/'dds_generation.log','a',encoding='utf-8') as log:
                 log.write('\n[{0}] {1}\n'.format(datetime.now().isoformat(timespec='seconds'),incident_id))
                 log.write('Payload: topic={0!r}, shift={1!r}, site={2!r}, date={3!r}\n'.format(
                     str(body.get('topic',''))[:140],body.get('shift'),body.get('work_site'),body.get('date')))
@@ -1809,7 +1895,7 @@ def generate_bulk():
                 payload={**body,**topic_item,'shift':shift,'work_site':unit,'unit':unit,'sector':'LIMPEZA','duration':'01:00','date':iso_date}
                 try:
                     fname,meta=build_pdf(payload,state['employees'])
-                    temp_files.append((OUTPUT_DIR/fname,meta))
+                    temp_files.append((_output_dir()/fname,meta))
                     generated.append(meta)
                 except Exception as exc:
                     errors.append({'topic':topic_item['topic'],'shift':shift,'unit':unit,'error':str(exc)})
@@ -1819,7 +1905,7 @@ def generate_bulk():
     stamp=datetime.now(); combined_id=uuid.uuid4().hex[:8]
     date_label=iso_date or 'SEM_DATA'
     combined_name=f'DDS_MASSA_{date_label}_{stamp.strftime("%H%M%S")}_{combined_id}.pdf'
-    combined_path=OUTPUT_DIR/combined_name
+    combined_path=_output_dir()/combined_name
     merged=fitz.open()
     try:
         for path,meta in temp_files:
@@ -1842,9 +1928,9 @@ def generate_bulk():
 @app.get('/api/files/<path:filename>')
 def get_pdf(filename):
     safe=secure_filename(filename)
-    path=OUTPUT_DIR/safe
+    path=_output_dir()/safe
     if not path.exists() or path.suffix.lower()!='.pdf': abort(404)
-    return send_from_directory(OUTPUT_DIR,safe,mimetype='application/pdf',as_attachment=False,download_name=safe)
+    return send_from_directory(_output_dir(),safe,mimetype='application/pdf',as_attachment=False,download_name=safe)
 
 @app.get('/api/export-roster')
 def export_roster():
