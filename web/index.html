@@ -7,8 +7,47 @@
   <title>Gerador de DDS | Segurança e Rotina Operacional</title>
   <meta name="description" content="Plataforma para preparar, revisar e gerar Diálogos Diários de Segurança com formulário institucional e conferência antes da emissão." />
   <link rel="stylesheet" href="/styles.css?v=1.2.16" />
+<style>
+#central-auth-gate{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;overflow:auto;padding:18px;background:rgba(5,12,22,.97);color:#e7f0fb;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+#central-auth-gate[hidden]{display:none!important}
+.central-auth-card{width:min(100%,460px);padding:22px;border:1px solid #31516f;border-radius:14px;background:#101d2d;box-shadow:0 22px 80px rgba(0,0,0,.45)}
+.central-auth-card h1{margin:0 0 5px;font-size:24px}.central-auth-card p{color:#b9d6ed;margin:8px 0 16px}
+.central-auth-form{display:grid;gap:11px}.central-auth-form label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.central-auth-form input{width:100%;padding:11px;border-radius:7px;border:1px solid #38516d;background:#091522;color:#e7f0fb}
+.central-auth-form button,.central-auth-card button{padding:10px 12px;border:1px solid #168ce0;border-radius:7px;background:#0877c9;color:#fff;font-weight:750;cursor:pointer}
+#central-auth-message{margin-top:12px;color:#ffd78a;font-size:12px;overflow-wrap:anywhere}
+.central-auth-card a{display:inline-block;margin-top:13px;color:#78c6ff}
+#central-pay-box{margin-top:14px;padding:13px;border:1px solid #38516d;border-radius:9px;background:#0b1725}
+#central-pay-box[hidden]{display:none!important}
+#central-pay-qr{display:block;max-width:230px;max-height:230px;margin:10px auto;background:#fff}
+#central-pay-code{display:block;max-height:110px;overflow:auto;overflow-wrap:anywhere;padding:8px;background:#08111d;color:#d3e5f7;border-radius:6px;font-size:11px}
+.central-pay-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.central-pay-actions button{flex:1;min-width:130px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+  <div id="central-auth-gate" hidden>
+  <div class="central-auth-card">
+    <h1>Gerador de DDS</h1>
+    <p>Entre com a mesma conta da Central de Aplicativos. O acesso é validado no servidor. O teste dura 30 dias; depois, a renovação é de R$ 15,99 por mês via Pix.</p>
+    <form id="central-login-form" class="central-auth-form">
+      <label>E-mail da Central<input id="central-login-email" type="email" autocomplete="username" required></label>
+      <label>Senha<input id="central-login-password" type="password" autocomplete="current-password" required></label>
+      <button id="central-login-button" type="submit">Entrar e validar acesso</button>
+    </form>
+    <div id="central-auth-message" role="status" aria-live="polite"></div>
+    <div id="central-pay-box" hidden>
+      <strong>Renovação mensal — R$ 15,99</strong>
+      <p>Escaneie o QR Code ou copie o código Pix. O acesso será liberado quando o provedor confirmar o pagamento.</p>
+      <img id="central-pay-qr" alt="QR Code Pix para renovar o Gerador de DDS" hidden>
+      <code id="central-pay-code"></code>
+      <div class="central-pay-actions"><button id="central-copy-pix" type="button">Copiar código Pix</button><button id="central-refresh-license" type="button">Já paguei — verificar acesso</button></div>
+    </div>
+    <a href="https://central-de-aplicativos.pages.dev/portal.html" target="_blank" rel="noopener">Criar conta ou consultar a Central</a>
+  </div>
+</div>
+
   <div class="app-shell">
     <aside class="sidebar">
 
