@@ -33,8 +33,7 @@ async function showDdsPixCharge(){
    return;
  }
  if(data.status==='paga'){
-   centralGateMessage('Pagamento confirmado pelo servidor. Atualizando sua licença.');
-   await checkDdsLicense();
+   centralGateMessage('O pagamento consta como recebido, mas a licença ainda não foi sincronizada. Clique em “Já paguei — verificar acesso” para consultar novamente.');
    return;
  }
  const charge=data.cobranca||{};
