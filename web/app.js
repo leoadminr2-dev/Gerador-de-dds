@@ -1,6 +1,112 @@
 'use strict';
 const state = {employees:[],history:[],units:[],work_sites:[],unit_code:'GIG',shifts:[],supervisors:{},capacity:107,topics:[],topicCategories:[]};
-const BROWSER_BACKUP_KEY = 'gerador-dds.browser-backup.v1';
+let BROWSER_BACKUP_KEY = 'gerador-dds.browser-backup.v1';
+const DDS_SUPABASE_URL = 'https://fmbsvwprmygeujslmcvu.supabase.co';
+const DDS_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_kw2FlQEMXwF9IwLKqPM13w_bMDrplVk';
+let ddsCentralClient = null;
+let centralAuthRequired = false;
+let centralAppStarted = false;
+
+function centralGateMessage(message, error=false){
+ const node=$('central-auth-message');if(node){node.textContent=message||'';node.style.color=error?'#ffb8bf':'#ffd78a'}
+}
+function showCentralGate(message, error=false){
+ const gate=$('central-auth-gate');if(gate)gate.hidden=false;
+ if(message)centralGateMessage(message,error);
+}
+function hideCentralGate(){const gate=$('central-auth-gate');if(gate)gate.hidden=true}
+async function centralRequestHeaders(extra={}){
+ const headers=new Headers(extra||{});
+ if(!centralAuthRequired)return headers;
+ if(!ddsCentralClient)throw new Error('O login central ainda não foi inicializado.');
+ const {data,error}=await ddsCentralClient.auth.getSession();
+ if(error||!data.session)throw new Error('Entre novamente na sua conta da Central.');
+ headers.set('Authorization','Bearer '+data.session.access_token);
+ return headers;
+}
+async function showDdsPixCharge(){
+ const box=$('central-pay-box');if(box)box.hidden=false;
+ centralGateMessage('Seu período de teste terminou. Preparando a renovação Pix de R$ 15,99…');
+ const {data,error}=await ddsCentralClient.functions.invoke('gerador-dds-cobranca',{body:{app_slug:'gerador-dds'}});
+ if(error||!data||data.error){
+   centralGateMessage(data?.error||error?.message||'Não foi possível gerar o Pix. Confira a configuração de pagamento e tente novamente.',true);
+   return;
+ }
+ if(data.status==='paga'){
+   centralGateMessage('Pagamento confirmado pelo servidor. Atualizando sua licença.');
+   await checkDdsLicense();
+   return;
+ }
+ const charge=data.cobranca||{};
+ const code=charge.pix_copia_cola||'';
+ $('central-pay-code').textContent=code||'O provedor não retornou o código Pix.';
+ const qr=$('central-pay-qr');
+ if(charge.pix_qr_code_base64){qr.src='data:image/png;base64,'+charge.pix_qr_code_base64;qr.hidden=false}else{qr.removeAttribute('src');qr.hidden=true}
+ centralGateMessage(data.status==='pendente'?'Pix gerado. Após o pagamento, aguarde a confirmação automática do provedor.':'O provedor não retornou uma cobrança pendente.',!code);
+}
+async function checkDdsLicense(){
+ if(!ddsCentralClient)throw new Error('Login central indisponível.');
+ const {data:userData,error:userError}=await ddsCentralClient.auth.getUser();
+ if(userError||!userData.user)throw new Error('Entre na sua conta da Central.');
+ BROWSER_BACKUP_KEY='gerador-dds.browser-backup.v1.'+userData.user.id;
+ const {data,error}=await ddsCentralClient.rpc('central_start_app_trial',{p_app_slug:'gerador-dds'});
+ if(error)throw new Error(error.message||'Não foi possível validar o período de teste.');
+ const license=Array.isArray(data)?data[0]:data;
+ if(!license)throw new Error('A Central não retornou o status da licença.');
+ const expiry=license.expires_at?new Date(license.expires_at).getTime():0;
+ if(license.license_status==='active'&&expiry>Date.now()){
+   hideCentralGate();
+   $('central-pay-box').hidden=true;
+   if(!centralAppStarted){centralAppStarted=true;await initializeApp()}else{await loadState();await loadTopics()}
+   const days=Number(license.days_remaining);
+   if([5,3,1].includes(days))setTimeout(()=>toast('Atenção: seu teste ou período ativo termina em '+days+' dia(s).','error'),500);
+   else if(days>0&&days<=7)setTimeout(()=>toast('Seu acesso termina em '+days+' dia(s).','error'),500);
+   return true;
+ }
+ showCentralGate('Seu acesso está vencido ou aguardando regularização.');
+ await showDdsPixCharge();
+ return false;
+}
+async function initializeCentralGate(){
+ const gate=$('central-auth-gate');
+ try{
+   const response=await fetch('/api/health',{cache:'no-store',headers:await centralRequestHeaders({'Accept':'application/json'})});
+   const health=response.ok?await response.json():{};
+   centralAuthRequired=!!health.central_auth_required;
+ }catch(_){centralAuthRequired=false}
+ if(!centralAuthRequired){hideCentralGate();await initializeApp();return}
+ showCentralGate('Entre com sua conta da Central para validar a licença.');
+ if(!window.supabase){centralGateMessage('Não foi possível carregar o módulo de autenticação. Verifique a conexão e recarregue a página.',true);return}
+ ddsCentralClient=window.supabase.createClient(DDS_SUPABASE_URL,DDS_SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ $('central-login-form').addEventListener('submit',async e=>{
+   e.preventDefault();const button=$('central-login-button');button.disabled=true;
+   try{
+     centralGateMessage('Validando sua conta, o teste e a licença…');
+     const {error}=await ddsCentralClient.auth.signInWithPassword({email:$('central-login-email').value.trim(),password:$('central-login-password').value});
+     if(error)throw error;
+     await checkDdsLicense();
+   }catch(err){centralGateMessage(err.message||'Falha ao entrar na Central.',true)}
+   finally{button.disabled=false}
+ });
+ $('central-refresh-license').addEventListener('click',async()=>{
+   const button=$('central-refresh-license');button.disabled=true;
+   try{centralGateMessage('Consultando novamente a confirmação do pagamento…');await checkDdsLicense()}
+   catch(err){centralGateMessage(err.message||'Não foi possível consultar a licença.',true)}
+   finally{button.disabled=false}
+ });
+ $('central-copy-pix').addEventListener('click',async()=>{
+   const code=$('central-pay-code').textContent||'';
+   if(!code||code.startsWith('O provedor')){centralGateMessage('Ainda não há código Pix para copiar.',true);return}
+   try{await navigator.clipboard.writeText(code);centralGateMessage('Código Pix copiado.')}
+   catch(_){centralGateMessage('Não foi possível copiar automaticamente. Selecione e copie o código Pix.')}
+ });
+ const {data,error}=await ddsCentralClient.auth.getSession();
+ if(error){centralGateMessage(error.message,true);return}
+ if(data.session){
+   try{await checkDdsLicense()}catch(err){centralGateMessage(err.message||'Não foi possível validar o acesso.',true)}
+ }
+ ddsCentralClient.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT'&&centralAuthRequired)window.location.reload()});
+}
 const $ = (id)=>document.getElementById(id);
 const dayISO = ()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const esc = (v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -36,7 +142,8 @@ async function refreshBrowserBackup(){
  }
 }
 async function api(url,options={}){
- const response=await fetch(url,options);let body={};try{body=await response.json()}catch{}
+ const headers=await centralRequestHeaders(options.headers||{});
+ const response=await fetch(url,{...options,headers});let body={};try{body=await response.json()}catch{}
  if(!response.ok)throw new Error(body.error||`Falha na solicitação (${response.status}).`);
  const method=String(options.method||'GET').toUpperCase();
  if(['POST','PUT','PATCH','DELETE'].includes(method))await refreshBrowserBackup();
@@ -451,7 +558,7 @@ async function loadState(showToast=false){
   if(!r.employees?.length){
    const backup=readBrowserBackup();
    if(backup?.state?.employees?.length){
-    const response=await fetch('/api/restore-backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)});
+    const restoreHeaders=await centralRequestHeaders({'Content-Type':'application/json'});const response=await fetch('/api/restore-backup',{method:'POST',headers:restoreHeaders,body:JSON.stringify(backup)});
     let body={};try{body=await response.json()}catch{}
     if(response.ok){
      r=await api('/api/state');
@@ -467,4 +574,4 @@ async function loadState(showToast=false){
  }catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}
 }
 async function initializeApp(){updateEnvironmentStatus();await loadState();await loadTopics()}
-initializeApp();
+initializeCentralGate().catch(err=>{showCentralGate(err.message||'Falha ao inicializar o acesso.',true)});
