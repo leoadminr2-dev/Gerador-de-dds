@@ -27,7 +27,7 @@ else:
     DATA_DIR = Path(__file__).resolve().parent / 'data'
 OUTPUT_DIR = DATA_DIR / 'outputs'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-_output_dir().mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 STATE_PATH = DATA_DIR / 'state.json'
 TOPICS_DB_PATH = DATA_DIR / 'temas_offline.db'
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -47,7 +47,7 @@ UNIT_SUPERVISORS = {'UNITED': 'WILKER MARIA', 'GATE GOURMET': 'MARCIA FASUTINO',
 SUPERVISORS = {
     'NOTURNO': ['MARIA DO SOCORRO'],
     'DIURNO': ['ORLANDO BARBOSA', 'EVELYN MONTOVANI'],
-    'VESPERTINO': ['VICTOR HUGO', 'BRUNA FRAGA', 'KAYO LESSA'],
+    'VESPERTINO': ['KAYO LESSA', 'BRUNA FRAGA'],
 }
 SHIFT_ALIASES = {
     'NOTURNO':'NOTURNO','NOITE':'NOTURNO','MADRUGADA':'NOTURNO','TURNO NOTURNO':'NOTURNO',
