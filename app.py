@@ -1532,11 +1532,9 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
         row_top = supervisor_top + (supervisor_index - 1) * supervisor_row_height
         row_bottom = row_top + supervisor_row_height
-        # Descer ambos os responsáveis 2 pontos preservando a distância entre eles.
+        # Evelyn fica na posição já aprovada; Orlando desce mais 3 pontos,
+        # removendo o deslocamento anterior de -3 pontos.
         row_baseline = (row_top + row_bottom) / 2 + 4.0
-        # Preservar o ajuste individual pré-existente de Orlando Barbosa.
-        if supervisor_name.strip().upper() == 'ORLANDO BARBOSA':
-            row_baseline -= 3.0
         centered_text(p, f'{supervisor_index:02d}. {supervisor_name}',
                       supervisor_left, supervisor_right, row_baseline,
                       font='helv', size=7.0, min_size=6.0, writer=writers[0])
