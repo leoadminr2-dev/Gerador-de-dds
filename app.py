@@ -1468,6 +1468,41 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     template_capacity=sum(len(p['rows']) for p in layout['pages'])
     required_rows=template_capacity if manual_blank else len(chosen)+BLANK_ATTENDANCE_ROWS
     doc=fitz.open(_active_template_path())
+    # Normalize the tone of straight table/grid strokes across every page of the DDS.
+    # Preserve each line's original coordinates and width; only the stroke color changes.
+    for template_page in doc:
+        try:
+            template_drawings = template_page.get_drawings()
+        except Exception:
+            template_drawings = []
+        strokes_to_normalize = []
+        for drawing in template_drawings:
+            color = drawing.get('color')
+            width = drawing.get('width') or 0.6
+            if color is None:
+                continue
+            # Restrict this pass to grayscale/near-gray strokes, leaving colored artwork intact.
+            if not (len(color) >= 3 and max(color[:3]) - min(color[:3]) <= 0.08):
+                continue
+            for item in drawing.get('items', []):
+                kind = item[0]
+                if kind == 'l':
+                    p1, p2 = item[1], item[2]
+                    if abs(p1.x - p2.x) < 0.5 or abs(p1.y - p2.y) < 0.5:
+                        strokes_to_normalize.append((p1, p2, width))
+                elif kind == 're':
+                    rect = item[1]
+                    # Table rules and borders are long/thin rectangles; ignore compact artwork.
+                    if rect.width >= 80 and rect.height <= 2.2:
+                        strokes_to_normalize.append((fitz.Point(rect.x0, rect.y0 + rect.height/2),
+                                                     fitz.Point(rect.x1, rect.y0 + rect.height/2), width))
+                    elif rect.height >= 80 and rect.width <= 2.2:
+                        strokes_to_normalize.append((fitz.Point(rect.x0 + rect.width/2, rect.y0),
+                                                     fitz.Point(rect.x0 + rect.width/2, rect.y1), width))
+        for p1, p2, stroke_width in strokes_to_normalize:
+            template_page.draw_line(p1, p2, color=(0, 0, 0),
+                                    width=max(0.45, min(float(stroke_width), 1.4)),
+                                    overlay=True)
     roster_pages=prepare_attendance_pages(doc, layout, required_rows)
     # Queue text per page: insert_text wraps existing streams on every call.
     # Batching avoids repeated content-stream processing when many attendance rows are printed.
@@ -1486,21 +1521,24 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     centered_text(p,turn_display,100.5,206.5,341.8,font='helv',size=7.8,min_size=6.0,writer=writers[0])
     centered_text(p,duration,402.8,448.6,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
     centered_text(p,display_date,504.0,568.0,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
-    # List each responsible person separately, numbered, within the existing responsible/instructor field.
-    # Keep the institutional form unchanged and prevent names from being merged into one text line.
-    supervisor_left, supervisor_right = 51.7, 270.0
-    supervisor_top, supervisor_bottom = 357.0, 397.0
+    # The institutional template already contains preprinted supervisor names.
+    # Clear only the inside of that cell before rendering the selected shift's names,
+    # preventing the printed template text from overlapping the generated text.
+    supervisor_left, supervisor_right = 53.0, 269.0
+    supervisor_top, supervisor_bottom = 358.5, 395.5
+    p.draw_rect(
+        fitz.Rect(supervisor_left, supervisor_top, supervisor_right, supervisor_bottom),
+        color=None, fill=(1, 1, 1), overlay=True
+    )
     supervisor_count = max(1, len(supervisor_names))
     supervisor_row_height = (supervisor_bottom - supervisor_top) / supervisor_count
     for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
         row_top = supervisor_top + (supervisor_index - 1) * supervisor_row_height
         row_bottom = row_top + supervisor_row_height
-        row_baseline = (row_top + row_bottom) / 2 + 2.6
-        # Keep the sequence number inside the same responsible field, immediately left of the name.
-        # Render number and name as one text string so there is no separate number cell.
+        row_baseline = (row_top + row_bottom) / 2 + 2.0
         centered_text(p, f'{supervisor_index:02d}. {supervisor_name}',
                       supervisor_left, supervisor_right, row_baseline,
-                      font='helv', size=7.2, min_size=6.0, writer=writers[0])
+                      font='helv', size=7.0, min_size=6.0, writer=writers[0])
 
     # Populate the exact number of selected-shift rows plus five extraordinary blank slots.
     columns=layout['columns']
