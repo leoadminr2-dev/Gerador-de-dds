@@ -109,21 +109,28 @@ class BatchedPdfBuildTests(unittest.TestCase):
                     text = "\\n".join(page.get_text() for page in document)
                     self.assertEqual(text.count("ORLANDO BARBOSA"), 1)
                     self.assertEqual(text.count("EVELYN MONTOVANI"), 1)
-                    # Numero separado e alinhado a esquerda da mesma celula,
-                    # nome centralizado com espacamento maior entre as letras.
-                    words = [
-                        w for w in document[0].get_text("words")
+                    # A numeração deve aparecer na célula estreita x=24..48,
+                    # sem invadir a célula do nome x=48..277.
+                    words = document[0].get_text("words")
+                    numbers = [
+                        w for w in words
+                        if 24.2 <= w[0] and w[2] <= 47.2
+                        and 364.0 <= w[1] < 396.0
+                    ]
+                    names = [
+                        w for w in words
                         if 53.0 <= w[0] < 269.0 and 350.0 <= w[1] < 396.0
                     ]
-                    for number, first_name in [("01.", "ORLANDO"), ("02.", "EVELYN")]:
-                        nums = [w for w in words if w[4] == number]
-                        names = [w for w in words if w[4] == first_name]
+                    for number, first_name in [("01", "ORLANDO"), ("02", "EVELYN")]:
+                        nums = [w for w in numbers if w[4] == number]
+                        matching_names = [w for w in names if w[4] == first_name]
                         self.assertEqual(len(nums), 1, number)
-                        self.assertEqual(len(names), 1, first_name)
-                        self.assertLess(nums[0][2] + 10.0, names[0][0])
-                        self.assertLess(abs(nums[0][1] - names[0][1]), 1.5)
+                        self.assertEqual(len(matching_names), 1, first_name)
+                        self.assertLess(nums[0][2], 47.2)
+                        self.assertGreater(matching_names[0][0], 53.0)
+                        self.assertLess(abs(nums[0][1] - matching_names[0][1]), 1.5)
                         base_width = fitz.get_text_length(first_name, fontname="helv", fontsize=7.0)
-                        self.assertGreater(names[0][2] - names[0][0], base_width + 0.7)
+                        self.assertGreater(matching_names[0][2] - matching_names[0][0], base_width + 0.7)
                     self.assertIn("PROIBIDA a reprodução não autorizada", text)
 
                     # The narrow strip above the first generated name must be blank.

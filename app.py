@@ -1539,9 +1539,19 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
                     if rect.width > 0 and rect.height > 0:
                         p.add_redact_annot(rect, fill=False, cross_out=False)
                         redactions_added += 1
+        # Algumas versões do modelo trazem "1" e "2" pré-impressos
+        # nos quadradinhos. Eliminar somente esses algarismos, nunca as linhas.
+        for original_word in p.get_text("words"):
+            x0, y0, x1, y1, word = original_word[:5]
+            if (word.strip() in ('1', '2', '01', '02', '01.', '02.')
+                    and 25.0 < x0 < 46.0 and x1 < 47.2
+                    and 364.0 < y0 < 396.0 and y1 < 398.0):
+                p.add_redact_annot(fitz.Rect(x0 - 0.3, y0 - 0.3,
+                                             x1 + 0.3, y1 + 0.3),
+                                   fill=False, cross_out=False)
+                redactions_added += 1
         if redactions_added:
-            # Remove the preprinted text precisely and clear overlapping image pixels if present;
-            # leave vector borders untouched.
+            # Excluir caracteres preimpressos sem fundo e sem tocar os vetores.
             p.apply_redactions(images=2, graphics=0, text=0)
     except Exception:
         # Never paint over the institutional cell as a fallback.
@@ -1561,9 +1571,13 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
             row_baseline += 4.0
         elif supervisor_name.strip().upper() == 'EVELYN MONTOVANI':
             row_baseline += 1.0
-        # Numeracao alinhada no canto esquerdo da celula original.
-        writers[0].append((supervisor_left + 7.0, row_baseline),
-                          f'{supervisor_index:02d}.',
+        # Numero exclusivamente na celula estreita à esquerda do nome.
+        # Preserva a linha divisoria original, sem pintar fundo nem redesenhar bordas.
+        number_cell_left, number_cell_right = 24.2, 47.2
+        number_text = f'{supervisor_index:02d}'
+        number_width = fitz.get_text_length(number_text, fontname='helv', fontsize=7.0)
+        number_x = number_cell_left + (number_cell_right - number_cell_left - number_width) / 2.0
+        writers[0].append((number_x, row_baseline), number_text,
                           font=fitz.Font(fontname='helv'), fontsize=7.0)
         # Nome independente, centralizado no restante da celula, com entreletras.
         # A altura aprovada de Orlando e Evelyn permanece inalterada.
