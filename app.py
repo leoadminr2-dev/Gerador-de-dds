@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, quote_plus, urlparse, unquote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from html.parser import HTMLParser
-from flask import Flask, jsonify, request, send_from_directory, abort, g, session
+from flask import Flask, jsonify, request, send_from_directory, abort, g, session, Response
 from werkzeug.utils import secure_filename
 import fitz
 from openpyxl import load_workbook
@@ -1732,6 +1732,96 @@ def index():
 @app.get('/api/health')
 def health():
     return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.3.0-web-ready' if HOSTED_MODE else '1.3.0-local','central_auth_required':CENTRAL_AUTH_ENABLED,'persistent_storage_configured':persistent_storage_available()})
+
+
+# Cofre durável exclusivo do Gerador DDS: Supabase separado do banco familiar.
+# A identidade vem da sessão do proprietário ou do JWT já validado pela Central.
+# A chave de máquina do proprietário reside SOMENTE no ambiente do Render.
+def _vault_proxy(action: str, method: str = 'GET',
+                 body: bytes | None = None, filename: str = '') -> Response:
+    endpoint = os.environ.get('DDS_VAULT_ENDPOINT', '').strip().rstrip('/')
+    if not HOSTED_MODE or not endpoint.startswith('https://'):
+        return jsonify({'error': 'Armazenamento durável ainda não está disponível.'}), 503
+    owner_id = str(session.get('dds_owner_user_id') or '')
+    owner_logged = _owner_access_configured() and hmac.compare_digest(owner_id, OWNER_ACCESS_USER_ID)
+    headers = {'Accept': 'application/pdf' if action == 'pdf' and method == 'GET' else 'application/json',
+               'apikey': 'sb_publishable_h1TBieh4mxQj0DZXDNu31w_C9HDenLR'}
+    if owner_logged:
+        owner_token = os.environ.get('DDS_VAULT_OWNER_TOKEN', '').strip()
+        if len(owner_token) < 50:
+            return jsonify({'error': 'Cofre do proprietário não configurado.'}), 503
+        headers['X-DDS-Owner-Token'] = owner_token
+    else:
+        bearer = request.headers.get('Authorization', '')
+        if not bearer.lower().startswith('bearer '):
+            return jsonify({'error': 'Entre novamente na Central para acessar o cofre.'}), 401
+        headers['Authorization'] = bearer
+    if action not in ('state', 'pdf'):
+        return jsonify({'error': 'Operação não autorizada.'}), 400
+    url = endpoint + '?action=' + action
+    if action == 'pdf':
+        if not re.fullmatch(r'[A-Za-z0-9_.-]{1,180}\.pdf', filename, re.I):
+            return jsonify({'error': 'Nome do PDF inválido.'}), 400
+        url += '&file=' + quote_plus(filename)
+    if body is not None:
+        headers['Content-Type'] = 'application/pdf' if action == 'pdf' else 'application/json'
+    outgoing = Request(url, data=body, method=method, headers=headers)
+    try:
+        with urlopen(outgoing, timeout=18) as upstream:
+            payload = upstream.read(12 * 1024 * 1024)
+            status = upstream.status
+            returned_type = upstream.headers.get('Content-Type', 'application/json')
+    except HTTPError as exc:
+        status = exc.code
+        payload = exc.read(4096)
+        returned_type = 'application/json'
+    except (URLError, TimeoutError, OSError) as exc:
+        app.logger.warning('DDS durable vault request failed: %s', type(exc).__name__)
+        return jsonify({'error': 'Armazenamento durável temporariamente indisponível.'}), 503
+    if action == 'pdf' and method == 'GET' and status == 200:
+        return Response(payload, status=200, mimetype='application/pdf',
+                        headers={'Cache-Control': 'private, no-store',
+                                 'Content-Disposition': 'inline; filename="' + filename + '"'})
+    return Response(payload, status=status, content_type=returned_type,
+                    headers={'Cache-Control': 'no-store'})
+
+
+@app.get('/api/vault/status')
+def dds_vault_status():
+    configured = bool(HOSTED_MODE and
+        os.environ.get('DDS_VAULT_ENDPOINT','').startswith('https://'))
+    return jsonify({'configured': configured})
+
+
+@app.get('/api/vault/state')
+def dds_vault_get_state():
+    return _vault_proxy('state')
+
+
+@app.put('/api/vault/state')
+def dds_vault_save_state():
+    if request.content_length is not None and request.content_length > 2 * 1024 * 1024:
+        return jsonify({'error': 'Backup ultrapassa 2 MB.'}), 413
+    body = request.get_data(cache=False)
+    if len(body) > 2 * 1024 * 1024:
+        return jsonify({'error': 'Backup ultrapassa 2 MB.'}), 413
+    return _vault_proxy('state', 'PUT', body)
+
+
+@app.get('/api/vault/pdf/<filename>')
+def dds_vault_get_pdf(filename):
+    return _vault_proxy('pdf', 'GET', filename=filename)
+
+
+@app.post('/api/vault/pdf/<filename>')
+def dds_vault_save_pdf(filename):
+    if request.content_length is not None and request.content_length > 10 * 1024 * 1024:
+        return jsonify({'error': 'PDF ultrapassa 10 MB.'}), 413
+    body = request.get_data(cache=False)
+    if not 20 <= len(body) <= 10 * 1024 * 1024 or not body.startswith(b'%PDF-'):
+        return jsonify({'error': 'PDF inválido ou muito grande.'}), 400
+    return _vault_proxy('pdf', 'POST', body, filename=filename)
+
 
 @app.get('/api/template')
 def get_template_settings():

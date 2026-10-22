@@ -36,7 +36,14 @@ async function openProtectedPdf(path,print=false){
  if(viewer){viewer.document.title='Abrindo DDS';viewer.document.body.textContent='Carregando PDF protegido…';}
  try{
   const headers=await centralRequestHeaders({'Accept':'application/pdf'});
-  const response=await fetch(path,{headers,cache:'no-store',credentials:'same-origin'});
+  let response=await fetch(path,{headers,cache:'no-store',credentials:'same-origin'});
+  // Após reinicializações do Render Free, buscar o PDF durável no Supabase.
+  if(response.status===404){
+    const name=decodeURIComponent(path.split('/').pop()||'');
+    response=await fetch('/api/vault/pdf/'+encodeURIComponent(name),{
+      headers,cache:'no-store',credentials:'same-origin'
+    });
+  }
   if(!response.ok){
    let error={};try{error=await response.json()}catch(_){}
    throw new Error(error.error||`Não foi possível abrir o PDF (${response.status}).`);
@@ -219,6 +226,53 @@ function readBrowserBackup(){
   return backup?.format==='gerador-dds-backup'&&backup?.backup_version===1&&backup?.state&&Array.isArray(backup.state.employees)?backup:null;
  }catch(_){return null}
 }
+// O cofre persistente fica no Supabase exclusivo do Gerador, isolado por usuário.
+let vaultWarningShown=false;
+async function durableVaultSync(backup){
+ const headers=await centralRequestHeaders({'Content-Type':'application/json','Accept':'application/json'});
+ const response=await fetch('/api/vault/state',{
+   method:'PUT',headers,credentials:'same-origin',cache:'no-store',
+   body:JSON.stringify(backup),
+ });
+ if(!response.ok){
+  const result=await response.json().catch(()=>({}));
+  throw new Error(result.error||'Falha ao salvar backup durável.');
+ }
+ return true;
+}
+async function durableVaultRead(){
+ const headers=await centralRequestHeaders({'Accept':'application/json'});
+ const response=await fetch('/api/vault/state',{headers,credentials:'same-origin',cache:'no-store'});
+ if(!response.ok)return null;
+ const result=await response.json().catch(()=>({}));
+ return result.backup?.format==='gerador-dds-backup' ? result.backup : null;
+}
+async function persistPdfToVault(fileUrl){
+ if(!fileUrl||!String(fileUrl).startsWith('/api/files/'))return false;
+ const filename=decodeURIComponent(String(fileUrl).split('/').pop()||'');
+ if(!/^[a-zA-Z0-9_.-]{1,180}\.pdf$/i.test(filename))return false;
+ const headers=await centralRequestHeaders({'Accept':'application/pdf'});
+ const original=await fetch(fileUrl,{headers,credentials:'same-origin',cache:'no-store'});
+ if(!original.ok)throw new Error('Não foi possível ler o PDF para salvar no cofre.');
+ const pdf=await original.blob();
+ if(pdf.size>10*1024*1024)throw new Error('PDF ultrapassa o limite do cofre.');
+ const uploadHeaders=await centralRequestHeaders({'Content-Type':'application/pdf'});
+ const saved=await fetch('/api/vault/pdf/'+encodeURIComponent(filename),{
+   method:'POST',headers:uploadHeaders,credentials:'same-origin',body:pdf,
+ });
+ if(!saved.ok){
+  const details=await saved.json().catch(()=>({}));
+  throw new Error(details.error||'Não foi possível salvar o PDF permanentemente.');
+ }
+ return true;
+}
+async function savePdfWithWarning(fileUrl){
+ try{await persistPdfToVault(fileUrl);}
+ catch(err){
+  console.warn('DDS: cópia durável do PDF indisponível:',err);
+  toast('Atenção: PDF emitido, mas a cópia permanente não foi confirmada. Salve o arquivo no computador.','error');
+ }
+}
 async function refreshBrowserBackup(){
  try{
   const headers=await centralRequestHeaders({'Accept':'application/json'});
@@ -226,8 +280,21 @@ async function refreshBrowserBackup(){
   if(!response.ok)return false;
   const backup=await response.json();
   if(backup?.format!=='gerador-dds-backup'||backup?.backup_version!==1||!Array.isArray(backup?.state?.employees))return false;
-  localStorage.setItem(BROWSER_BACKUP_KEY,JSON.stringify(backup));
-  return true;
+  // Mantém a cópia do navegador e também a versão durável no Supabase.
+  try{localStorage.setItem(BROWSER_BACKUP_KEY,JSON.stringify(backup))}
+  catch(err){console.warn('Cópia local DDS não salva:',err);}
+  try{
+   await durableVaultSync(backup);
+   vaultWarningShown=false;
+   return true;
+  }catch(err){
+   console.warn('Cópia remota do DDS não foi sincronizada:',err);
+   if(!vaultWarningShown){
+    vaultWarningShown=true;
+    toast('Atenção: alterações salvas no servidor, mas backup durável indisponível. Exporte uma cópia em Configurações.','error');
+   }
+   return false;
+  }
  }catch(err){
   console.warn('Não foi possível atualizar a cópia de segurança deste navegador.',err);
   return false;
@@ -497,6 +564,7 @@ $('bulk-generate-confirm').addEventListener('click',async()=>{
   const failures=(result.failures||[]).map(x=>`<div class="bulk-result-note error">Falha: ${esc(shiftLabel(x.shift))} · ${esc(x.unit)} — ${esc(x.error)}</div>`);
   $('bulk-result-list').innerHTML=[...rows,...skipped,...failures].join('')||'<p>Nenhum PDF foi gerado.</p>';
   $('bulk-result-modal').classList.remove('hidden');
+  for(const item of generated){if(item.url)await savePdfWithWarning(item.url);}
   toast(`Geração em massa concluída: ${result.count} PDF(s).`);
  }catch(err){closeBulkModal();showError(err.message);toast(err.message,'error')}
  finally{button.disabled=false;button.textContent='Gerar PDF único →'}
@@ -561,6 +629,7 @@ $('confirm-generate-btn').addEventListener('click',async()=>{
   if(meta.warnings?.length)meta.warnings.forEach(w=>toast(w,'error'));
   if(meta.font_adjusted)toast('O texto foi ajustado para caber no espaço do formulário. Confira a legibilidade no PDF.','error');
   state.history.unshift(meta);state.history=state.history.slice(0,100);renderHistory();
+  await savePdfWithWarning(generated.url);
   toast('PDF gerado. Confira o documento antes de imprimir.');
  }catch(err){showError(err.message);toast(err.message,'error')}
  finally{button.disabled=false;button.innerHTML='<span>GERAR DDS</span><span class="arrow">→</span>'}
@@ -716,8 +785,9 @@ async function loadState(showToast=false){
  try{
   let r=await api('/api/state');
   if(!r.employees?.length&&!browserRestorePrompted){
-   const backup=readBrowserBackup();
-   if(backup?.state?.employees?.length){
+   // Prioridade para o Supabase; o navegador serve apenas de contingência.
+   const backup=await durableVaultRead().catch(()=>null) || readBrowserBackup();
+   if(backup?.state?.employees?.length || backup?.custom_topics?.length || backup?.state?.history?.length){
     browserRestorePrompted=true;
     // Nunca sobrescrever o servidor automaticamente com uma cópia
     // possivelmente antiga. A pessoa precisa aprovar a recuperação.
@@ -734,7 +804,7 @@ async function loadState(showToast=false){
    }
   }
   Object.assign(state,r);renderStorageStatus(r);renderEmployeeSelection();refreshSummary();renderRoster();renderHistory();renderConfig();
-  if(state.employees.length)void refreshBrowserBackup();
+  if(state.employees.length||state.history.length)void refreshBrowserBackup();
   if(showToast)toast('Dados atualizados.');
  }catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}
 }
