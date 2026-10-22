@@ -113,16 +113,22 @@ class BatchedPdfBuildTests(unittest.TestCase):
 
                     # The narrow strip above the first generated name must be blank.
                     # It detects leftover fragments from preprinted names in the template.
-                    strip = fitz.Rect(54.0, 359.0, 268.0, 361.5)
+                    strip = fitz.Rect(54.0, 354.5, 268.0, 362.0)
                     pix = document[0].get_pixmap(matrix=fitz.Matrix(3, 3), clip=strip, alpha=False)
                     samples = pix.samples
-                    dark = 0
-                    pixels = pix.width * pix.height
-                    for i in range(0, len(samples), 3):
-                        if min(samples[i], samples[i + 1], samples[i + 2]) < 240:
-                            dark += 1
-                    self.assertLess(dark / max(pixels, 1), 0.005,
-                                    "Ainda há resíduos de texto na área dos responsáveis.")
+                    # Permit a continuous horizontal cell border, but not isolated text fragments.
+                    for row in range(pix.height):
+                        dark = 0
+                        offset = row * pix.width * 3
+                        for col in range(pix.width):
+                            i = offset + col * 3
+                            if min(samples[i], samples[i + 1], samples[i + 2]) < 240:
+                                dark += 1
+                        row_ratio = dark / max(pix.width, 1)
+                        self.assertTrue(
+                            row_ratio < 0.01 or row_ratio > 0.70,
+                            f"Resíduo de texto na faixa dos responsáveis (linha renderizada {row}, proporção {row_ratio:.3f}).",
+                        )
             finally:
                 dds.OUTPUT_DIR = original_output
                 dds._output_dir = original_output_dir
