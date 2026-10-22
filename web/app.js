@@ -98,7 +98,7 @@ async function checkDdsLicense(){
  const license=Array.isArray(data)?data[0]:data;
  if(!license)throw new Error('A Central não retornou o status da licença.');
  const expiry=license.expires_at?new Date(license.expires_at).getTime():0;
- if(license.license_status==='active'&&expiry>Date.now()){
+ if(license.license_status==='active'&&(!license.expires_at||expiry>Date.now())){
    hideCentralGate();
    $('central-pay-box').hidden=true;
    if(!centralAppStarted){centralAppStarted=true;await initializeApp()}else{await loadState();await loadTopics()}
