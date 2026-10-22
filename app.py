@@ -2,14 +2,14 @@ from __future__ import annotations
 import json, math, os, re, sqlite3, unicodedata, uuid, traceback, html, time, hmac
 from contextlib import closing
 from contextvars import ContextVar
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, quote_plus, urlparse, unquote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from html.parser import HTMLParser
-from flask import Flask, jsonify, request, send_from_directory, abort, g
+from flask import Flask, jsonify, request, send_from_directory, abort, g, session
 from werkzeug.utils import secure_filename
 import fitz
 from openpyxl import load_workbook
@@ -61,6 +61,18 @@ HOSTED_MODE = os.environ.get('DDS_HOSTED', '').strip() == '1'
 ADMIN_USER = os.environ.get('DDS_ADMIN_USER', 'admin')
 ADMIN_PASSWORD = os.environ.get('DDS_ADMIN_PASSWORD', '')
 CENTRAL_AUTH_ENABLED = HOSTED_MODE and os.environ.get('DDS_CENTRAL_AUTH', '').strip() == '1'
+OWNER_ACCESS_EMAIL = os.environ.get('DDS_OWNER_ACCESS_EMAIL', '').strip().lower()
+OWNER_ACCESS_PASSWORD = os.environ.get('DDS_OWNER_ACCESS_PASSWORD', '')
+OWNER_ACCESS_USER_ID = os.environ.get('DDS_OWNER_ACCESS_USER_ID', 'a85b328d-db23-44c0-9642-5109b9a13fe0').strip().lower()
+OWNER_SESSION_SECRET = os.environ.get('DDS_OWNER_SESSION_SECRET', '')
+if OWNER_SESSION_SECRET:
+    app.secret_key = OWNER_SESSION_SECRET
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=HOSTED_MODE,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+)
 if HOSTED_MODE and not CENTRAL_AUTH_ENABLED and len(ADMIN_PASSWORD) < 16:
     raise RuntimeError('Hospedagem bloqueada: configure DDS_ADMIN_PASSWORD com pelo menos 16 caracteres antes de iniciar.')
 
@@ -105,7 +117,7 @@ def _output_dir() -> Path:
     return output
 
 def _request_is_public_asset(path: str) -> bool:
-    if path in ('/', '/healthz', '/api/health'):
+    if path in ('/', '/healthz', '/api/health', '/api/owner-login', '/api/owner-session', '/api/owner-logout'):
         return True
     if path.startswith('/api/'):
         return False
@@ -149,6 +161,51 @@ def _authorize_central_request():
     g.dds_tenant_context_token = _CURRENT_TENANT_ID.set(user_id.lower())
     return None
 
+
+def _owner_access_configured() -> bool:
+    return bool(
+        HOSTED_MODE and CENTRAL_AUTH_ENABLED
+        and OWNER_ACCESS_EMAIL and len(OWNER_ACCESS_PASSWORD) >= 20
+        and len(OWNER_SESSION_SECRET) >= 32 and app.secret_key
+        and re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', OWNER_ACCESS_USER_ID, re.I)
+    )
+
+
+@app.get('/api/owner-session')
+def owner_session_status():
+    enabled = _owner_access_configured()
+    authenticated = enabled and hmac.compare_digest(
+        str(session.get('dds_owner_user_id') or ''), OWNER_ACCESS_USER_ID
+    )
+    return jsonify({
+        'enabled': enabled,
+        'authenticated': bool(authenticated),
+        'user_id': OWNER_ACCESS_USER_ID if authenticated else None,
+    })
+
+
+@app.post('/api/owner-login')
+def owner_login():
+    if not _owner_access_configured():
+        return jsonify({'error': 'O acesso pessoal ainda não está configurado no servidor.'}), 503
+    body = request.get_json(silent=True) or {}
+    email = str(body.get('email') or '').strip().lower()
+    password = str(body.get('password') or '')
+    email_ok = hmac.compare_digest(email.encode('utf-8'), OWNER_ACCESS_EMAIL.encode('utf-8'))
+    password_ok = hmac.compare_digest(password.encode('utf-8'), OWNER_ACCESS_PASSWORD.encode('utf-8'))
+    if not (email_ok and password_ok):
+        return jsonify({'error': 'E-mail ou senha do acesso pessoal inválidos.'}), 401
+    session.clear()
+    session['dds_owner_user_id'] = OWNER_ACCESS_USER_ID
+    session.permanent = True
+    return jsonify({'ok': True, 'user_id': OWNER_ACCESS_USER_ID})
+
+
+@app.post('/api/owner-logout')
+def owner_logout():
+    session.clear()
+    return jsonify({'ok': True})
+
 @app.before_request
 def require_hosted_admin_auth():
     if not HOSTED_MODE or CENTRAL_AUTH_ENABLED or request.path == '/healthz':
@@ -165,6 +222,10 @@ def require_hosted_admin_auth():
 @app.before_request
 def require_central_dds_license():
     if not CENTRAL_AUTH_ENABLED or _request_is_public_asset(request.path):
+        return None
+    owner_id = str(session.get('dds_owner_user_id') or '')
+    if _owner_access_configured() and hmac.compare_digest(owner_id, OWNER_ACCESS_USER_ID):
+        g.dds_tenant_context_token = _CURRENT_TENANT_ID.set(OWNER_ACCESS_USER_ID)
         return None
     return _authorize_central_request()
 
