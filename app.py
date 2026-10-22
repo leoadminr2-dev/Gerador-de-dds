@@ -1461,11 +1461,12 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     if isinstance(requested_ids,list) and requested_ids:
         requested_set={str(item) for item in requested_ids}
         chosen=[e for e in chosen if str(e.get('id','')) in requested_set]
-    if not chosen:
-        raise ValueError('Nenhum colaborador corresponde ao turno e à unidade selecionados. O PDF não foi emitido para evitar uma lista incorreta. Confira os filtros e os cadastros.')
+    manual_blank = payload.get('manual_blank') is True
+    if not chosen and not manual_blank:
+        raise ValueError('Nenhum colaborador corresponde ao turno e à unidade selecionados. O PDF não foi emitido para evitar uma lista incorreta. Confira os filtros e os cadastros ou selecione “DDS em branco — preenchimento manual”.')
     layout=json.loads(LAYOUT_PATH.read_text(encoding='utf-8'))
     template_capacity=sum(len(p['rows']) for p in layout['pages'])
-    required_rows=len(chosen)+BLANK_ATTENDANCE_ROWS
+    required_rows=template_capacity if manual_blank else len(chosen)+BLANK_ATTENDANCE_ROWS
     doc=fitz.open(_active_template_path())
     roster_pages=prepare_attendance_pages(doc, layout, required_rows)
     # Queue text per page: insert_text wraps existing streams on every call.
@@ -1515,7 +1516,7 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
             page_writer = writers[page_info['page']]
             centered_text(pg,str(row_number),float(columns['number'][0]),float(columns['number'][1]),baseline,
                           font='helv',size=7.8,min_size=6.0,writer=page_writer)
-            if row_number<=len(chosen):
+            if not manual_blank and row_number<=len(chosen):
                 employee=chosen[row_number-1]
                 name=str(employee.get('name','')).strip()
                 name_size=8.2
@@ -1556,7 +1557,7 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
         except OSError: pass
         raise
     meta={'id':uuid.uuid4().hex[:12],'topic':topic,'shift':shift,'sector':'LIMPEZA','unit':work_site,'work_site':work_site,'date':display_date,
-          'duration':duration,'supervisors':supervisor_names,'participants':len(chosen),'file':fname,
+          'duration':duration,'supervisors':supervisor_names,'participants':0 if manual_blank else len(chosen),'manual_blank':manual_blank,'file':fname,
           'created_at':generated_at.isoformat(timespec='seconds'),'warnings':[],'font_adjusted':shrunk,
           'template_pages':_count_pdf_pages(target),'template_capacity':template_capacity,'attendance_rows':required_rows,
           'blank_rows':BLANK_ATTENDANCE_ROWS}
