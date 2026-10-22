@@ -504,6 +504,44 @@ $('employee-edit-form').addEventListener('submit',async e=>{
 
 function renderHistory(){const all=state.history||[];const q=norm($('history-search')?.value||'');const shift=$('history-shift-filter')?.value||'TODOS';const list=all.filter(h=>(!q||norm(`${h.topic||''} ${h.unit||''} ${h.work_site||''} ${h.sector||''} ${h.date||''} ${h.file||''}`).includes(q))&&(shift==='TODOS'||h.shift===shift));if(!list.length){$('history-body').innerHTML=`<tr><td colspan="6" class="empty-state">${all.length?'Nenhuma emissão corresponde aos filtros.':'Nenhum DDS gerado ainda.'}</td></tr>`;return}$('history-body').innerHTML=list.map(h=>`<tr><td>${esc(h.date)}</td><td><b>${esc(h.topic)}</b></td><td><span class="shift-pill ${(h.shift||'').toLowerCase()}">${esc(shiftLabel(h.shift))}</span></td><td>${esc(h.unit||'GIG')} · ${esc(h.work_site||'Todas as unidades')}</td><td>${esc(h.participants)}</td><td><a class="history-link" href="/api/files/${encodeURIComponent(h.file)}" target="_blank" rel="noopener">Abrir PDF ↗</a></td></tr>`).join('')}
 $('history-search')?.addEventListener('input',renderHistory);$('history-shift-filter')?.addEventListener('change',renderHistory);
+async function refreshTemplateSettings(){
+ const name=$('template-current-name'),help=$('template-current-help'),reset=$('template-use-default');
+ try{
+  const info=await api('/api/template');
+  const custom=info.active==='custom';
+  if(name)name.textContent=custom?(info.name||'Modelo personalizado'):'Modelo institucional disponível';
+  if(help)help.textContent=custom?'Modelo personalizado ativo neste ambiente.':'O PDF original do projeto está selecionado.';
+  if(reset)reset.disabled=!custom;
+ }catch(err){if(name)name.textContent='Não foi possível consultar o modelo';if(help)help.textContent=err.message;if(reset)reset.disabled=true}
+}
+$('template-upload-file')?.addEventListener('change',async e=>{
+ const file=e.target.files?.[0];e.target.value='';if(!file)return;
+ const result=$('template-result');
+ result.classList.remove('hidden','error');result.textContent='Validando o PDF institucional…';
+ try{
+  if(file.size>15*1024*1024)throw new Error('O arquivo ultrapassa o limite de 15 MB.');
+  const fd=new FormData();fd.append('file',file);
+  const headers=await centralRequestHeaders();
+  const response=await fetch('/api/template',{method:'POST',headers,body:fd});
+  let body={};try{body=await response.json()}catch{}
+  if(!response.ok)throw new Error(body.error||'Falha ao enviar o modelo.');
+  result.textContent=body.message||'Modelo validado e ativado.';
+  await refreshTemplateSettings();toast('Modelo institucional atualizado. Gere um DDS de teste e confira todas as páginas.');
+ }catch(err){result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
+});
+$('template-use-default')?.addEventListener('click',async()=>{
+ const button=$('template-use-default'),result=$('template-result');
+ if(!confirm('Voltar a utilizar o modelo institucional disponível no projeto?'))return;
+ button.disabled=true;result.classList.remove('hidden','error');result.textContent='Restaurando o modelo padrão…';
+ try{
+  const headers=await centralRequestHeaders({'Content-Type':'application/json'});
+  const response=await fetch('/api/template/reset',{method:'POST',headers,body:'{}'});
+  let body={};try{body=await response.json()}catch{}
+  if(!response.ok)throw new Error(body.error||'Não foi possível restaurar o modelo padrão.');
+  result.textContent=body.message||'Modelo padrão restaurado.';await refreshTemplateSettings();toast('Modelo institucional padrão restaurado.');
+ }catch(err){result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
+ finally{button.disabled=false}
+});
 $('backup-download').addEventListener('click',async()=>{
  const button=$('backup-download'),result=$('backup-result');button.disabled=true;button.textContent='Preparando cópia…';
  try{const backup=await api('/api/backup-data');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`gerador_dds_backup_${dayISO()}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);result.classList.remove('hidden','error');result.textContent=`Cópia criada com ${backup.state.employees.length} colaboradores, ${backup.state.history.length} registros de histórico e ${backup.custom_topics.length} temas personalizados. Guarde o arquivo em outro local.`;toast('Cópia de segurança baixada.')}catch(err){result.classList.remove('hidden');result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
@@ -572,5 +610,5 @@ async function loadState(showToast=false){
   if(showToast)toast('Dados atualizados.');
  }catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}
 }
-async function initializeApp(){updateEnvironmentStatus();await loadState();await loadTopics()}
+async function initializeApp(){updateEnvironmentStatus();await loadState();await loadTopics();await refreshTemplateSettings()}
 initializeCentralGate().catch(err=>{showCentralGate(err.message||'Falha ao inicializar o acesso.',true)});
