@@ -87,5 +87,46 @@ class BatchedPdfBuildTests(unittest.TestCase):
                 dds._output_dir = original_output_dir
 
 
+    def test_responsible_names_are_unique_and_header_area_is_clean(self):
+        payload = {
+            "topic": "Teste visual do cabeçalho",
+            "shift": "DIURNO",
+            "work_site": "GIG",
+            "date": "2026-10-22",
+            "content": "OBJETIVO\\nValidar o cabeçalho e a limpeza dos nomes antigos.",
+            "manual_blank": True,
+        }
+        original_output = dds.OUTPUT_DIR
+        original_output_dir = dds._output_dir
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                dds.OUTPUT_DIR = Path(directory)
+                dds._output_dir = lambda: Path(directory)
+                filename, _ = dds.build_pdf(payload, [])
+                pdf_path = Path(directory) / filename
+                with fitz.open(pdf_path) as document:
+                    self.assertGreaterEqual(len(document), 3)
+                    text = "\\n".join(page.get_text() for page in document)
+                    self.assertEqual(text.count("01. ORLANDO BARBOSA"), 1)
+                    self.assertEqual(text.count("02. EVELYN MONTOVANI"), 1)
+                    self.assertIn("PROIBIDA a reprodução não autorizada", text)
+
+                    # The narrow strip above the first generated name must be blank.
+                    # It detects leftover fragments from preprinted names in the template.
+                    strip = fitz.Rect(54.0, 359.0, 268.0, 361.5)
+                    pix = document[0].get_pixmap(matrix=fitz.Matrix(3, 3), clip=strip, alpha=False)
+                    samples = pix.samples
+                    dark = 0
+                    pixels = pix.width * pix.height
+                    for i in range(0, len(samples), 3):
+                        if min(samples[i], samples[i + 1], samples[i + 2]) < 240:
+                            dark += 1
+                    self.assertLess(dark / max(pixels, 1), 0.005,
+                                    "Ainda há resíduos de texto na área dos responsáveis.")
+            finally:
+                dds.OUTPUT_DIR = original_output
+                dds._output_dir = original_output_dir
+
+
 if __name__ == "__main__":
     unittest.main()
