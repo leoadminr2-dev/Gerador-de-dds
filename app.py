@@ -1468,60 +1468,8 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     template_capacity=sum(len(p['rows']) for p in layout['pages'])
     required_rows=template_capacity if manual_blank else len(chosen)+BLANK_ATTENDANCE_ROWS
     doc=fitz.open(_active_template_path())
-    # Normalize gray grid strokes on every page without making rules thicker.
-    # Handle both stroked lines and thin filled rectangles (some template rules use fills).
-    for template_page in doc:
-        try:
-            template_drawings = template_page.get_drawings()
-        except Exception:
-            template_drawings = []
-        strokes_to_normalize = []
-        fills_to_normalize = []
-        for drawing in template_drawings:
-            stroke = drawing.get('color')
-            fill = drawing.get('fill')
-            width = drawing.get('width') or 0.6
-
-            def is_gray_rule_color(candidate):
-                return (
-                    candidate is not None
-                    and len(candidate) >= 3
-                    and max(candidate[:3]) - min(candidate[:3]) <= 0.08
-                    and max(candidate[:3]) < 0.92
-                )
-
-            gray_stroke = is_gray_rule_color(stroke)
-            gray_fill = is_gray_rule_color(fill)
-            if not gray_stroke and not gray_fill:
-                continue
-            for item in drawing.get('items', []):
-                kind = item[0]
-                if kind == 'l' and gray_stroke:
-                    p1, p2 = item[1], item[2]
-                    if abs(p1.x - p2.x) < 0.5 or abs(p1.y - p2.y) < 0.5:
-                        # Retain the source stroke width; change only its tone.
-                        strokes_to_normalize.append((p1, p2, max(0.35, min(float(width), 3.0))))
-                elif kind == 're':
-                    rect = item[1]
-                    horizontal_rule = rect.width >= 20 and rect.height <= 4.0
-                    vertical_rule = rect.height >= 20 and rect.width <= 4.0
-                    if not (horizontal_rule or vertical_rule):
-                        continue
-                    if gray_fill:
-                        # Filled rules must be darkened as shapes, not as an extra center line.
-                        fills_to_normalize.append(rect)
-                    elif gray_stroke:
-                        if horizontal_rule:
-                            p1 = fitz.Point(rect.x0, rect.y0 + rect.height / 2)
-                            p2 = fitz.Point(rect.x1, rect.y0 + rect.height / 2)
-                        else:
-                            p1 = fitz.Point(rect.x0 + rect.width / 2, rect.y0)
-                            p2 = fitz.Point(rect.x0 + rect.width / 2, rect.y1)
-                        strokes_to_normalize.append((p1, p2, max(0.35, min(float(width), 3.0))))
-        for rect in fills_to_normalize:
-            template_page.draw_rect(rect, color=None, fill=(0, 0, 0), overlay=True)
-        for p1, p2, stroke_width in strokes_to_normalize:
-            template_page.draw_line(p1, p2, color=(0, 0, 0), width=stroke_width, overlay=True)
+    # Temporariamente desativada a normalização global das linhas: a rotina anterior
+    # causava falha no PyMuPDF e timeout durante a geração do PDF.
     roster_pages=prepare_attendance_pages(doc, layout, required_rows)
     # Queue text per page: insert_text wraps existing streams on every call.
     # Batching avoids repeated content-stream processing when many attendance rows are printed.
