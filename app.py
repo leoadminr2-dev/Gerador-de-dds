@@ -1533,9 +1533,9 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
         row_top = supervisor_top + (supervisor_index - 1) * supervisor_row_height
         row_bottom = row_top + supervisor_row_height
         row_baseline = (row_top + row_bottom) / 2 + 2.0
-        # Orlando Barbosa: 8 pontos acima da posição anterior (+5 -> -3).
+        # Orlando Barbosa: descer 2 pontos em relação à posição anterior (-3 -> -1).
         if supervisor_name.strip().upper() == 'ORLANDO BARBOSA':
-            row_baseline -= 3.0
+            row_baseline -= 1.0
         centered_text(p, f'{supervisor_index:02d}. {supervisor_name}',
                       supervisor_left, supervisor_right, row_baseline,
                       font='helv', size=7.0, min_size=6.0, writer=writers[0])
