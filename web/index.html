@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#123d76" />
   <title>Gerador de DDS | Segurança e Rotina Operacional</title>
   <meta name="description" content="Plataforma para preparar, revisar e gerar Diálogos Diários de Segurança com formulário institucional e conferência antes da emissão." />
-  <link rel="stylesheet" href="/styles.css?v=1.2.19" />
+  <link rel="stylesheet" href="/styles.css?v=1.2.20" />
 <style>
 #central-auth-gate{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;overflow:auto;padding:18px;background:rgba(5,12,22,.97);color:#e7f0fb;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
 #central-auth-gate[hidden]{display:none!important}
@@ -93,7 +93,7 @@
         <div class="work-grid">
           <div class="form-column">
             <form id="dds-form" class="panel main-form" novalidate>
-              <div class="panel-heading"><div class="step-badge">01</div><div><h2>Identificação do DDS</h2><p>As informações serão aplicadas ao PDF de referência que você aprovou.</p></div><span class="required-note">* Obrigatório</span></div>
+              <div class="panel-heading dds-step-heading identification-heading"><div class="step-badge">01</div><div><h2>Identificação do DDS</h2><p>As informações serão aplicadas ao PDF de referência que você aprovou.</p></div><span class="required-note">* Obrigatório</span></div>
               <div class="form-grid">
                 <label class="field full"><span>Tema do DDS <em>*</em></span><input id="topic" list="topic-options" maxlength="140" required placeholder="Pesquise ou digite um tema salvo" autocomplete="off" /><datalist id="topic-options"></datalist><button type="button" class="text-button" id="browse-topics">Abrir banco de temas →</button><small class="field-hint">Use um tema claro e direto. Ele aparecerá no campo “Título” do documento.</small></label>
                 <label class="field"><span>Unidade</span><select id="operational-unit"><option value="GIG" selected>GIG</option><option value="TECA">TECA</option><option value="UNITED">UNITED</option><option value="GATE GOURMET">GATE GOURMET</option></select><small class="field-hint">Selecione uma unidade. A área no documento será sempre LIMPEZA; a lista conterá somente colaboradores do turno e da unidade selecionados.</small></label>
@@ -121,14 +121,14 @@
                 <label class="field"><span>Duração prevista</span><select id="duration"><option value="01:00" selected>01:00</option></select></label>
               </div>
 
-              <label class="field full manual-blank-option"><span><input type="checkbox" id="manual-blank-dds" /> DDS em branco — preenchimento manual</span><small class="field-hint">Não imprime nomes e libera todas as linhas de presença do formulário para preenchimento à mão. Não exige planilha de colaboradores.</small></label>
+              <label class="manual-blank-option" for="manual-blank-dds"><input type="checkbox" id="manual-blank-dds" /><span class="manual-blank-copy"><strong>DDS em branco — preenchimento manual</strong><small class="field-hint">Não imprime nomes e libera todas as linhas de presença do formulário para preenchimento à mão. Não exige planilha de colaboradores.</small></span></label>
               <div class="supervisor-panel">
                 <div class="supervisor-icon">♙</div><div class="supervisor-copy"><span>Responsável(is) conforme o turno</span><b id="supervisor-value">Selecione um turno para consultar</b></div><span class="auto-tag"><span>✓</span> Automático</span>
               </div>
               <div id="employee-selection-panel" class="employee-selection-panel hidden"><div class="employee-selection-tools"><b>Escolha os participantes</b><button type="button" class="text-button" id="select-all-visible-employees">Selecionar todos</button></div><div id="employee-selection-list" class="employee-selection-list"></div></div>
 
               <div class="section-divider"></div>
-              <div class="panel-heading content-heading"><div class="step-badge">02</div><div><h2>Objetivo e conteúdo educativo</h2><p>Gere um rascunho, revise e ajuste antes de emitir o PDF.</p></div></div>
+              <div class="panel-heading content-heading dds-step-heading"><div class="step-badge">02</div><div><h2>Objetivo e conteúdo educativo</h2><p>Gere um rascunho, revise e ajuste antes de emitir o PDF.</p></div></div>
               <div class="content-actions"><span class="content-status" id="content-status"><span class="status-dot"></span> Aguardando tema</span><button type="button" class="button primary" id="suggest-content"><span>⌕</span> Pesquisar na internet e gerar conteúdo</button></div>
               <label class="field full content-field"><span>Conteúdo do DDS</span><textarea id="content" rows="12" maxlength="2600" placeholder="O conteúdo sugerido será inserido aqui. Você pode editar o texto antes de gerar o documento."></textarea><div class="textarea-footer"><small>O texto é organizado automaticamente para caber no espaço do formulário. Revise as orientações técnicas antes de aplicar o DDS.</small><span id="char-count">0 / 2600</span></div></label>
               <div id="critical-review" class="critical-review" aria-live="polite"><b>Análise crítica do conteúdo</b><p>Pesquise o tema na internet ou carregue um tema já salvo. A análise local é auxiliar e não certifica a exatidão técnica.</p></div><div id="research-sources" class="research-sources hidden" aria-live="polite"></div>

@@ -366,3 +366,80 @@
 
 /* Configuração de modelo institucional */
 .template-choice-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:14px}.template-choice-row>div:first-child{display:grid;gap:5px}.template-choice-row small{color:var(--muted,#64748b);font-size:12px}.template-choice-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.template-upload-label{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.template-choice-actions button:disabled{opacity:.5;cursor:not-allowed}@media(max-width:650px){.template-choice-row,.template-choice-actions{align-items:stretch;flex-direction:column}.template-choice-actions>*{width:100%;text-align:center}}
+
+
+/* 22/10/2026 — Hierarquia visual do formulário DDS: títulos e controle manual.
+   Escopo limitado à tela; não interfere nas linhas do PDF institucional. */
+.main-form .dds-step-heading{
+  display:flex;align-items:center;gap:14px;min-width:0;
+  margin:0 0 22px;padding:16px 17px;
+  border:1px solid #cbddef;border-left:5px solid #1c5da8;
+  border-radius:11px;background:linear-gradient(110deg,#edf5ff 0%,#f9fbff 100%);
+}
+.main-form .dds-step-heading .step-badge{
+  width:38px;height:38px;flex:0 0 38px;border-radius:10px;
+  background:#1c5da8;color:#fff;font-size:13px;
+}
+.main-form .dds-step-heading > div:nth-child(2){min-width:0;flex:1}
+.main-form .dds-step-heading h2{
+  margin:0 0 4px;font-size:clamp(16px,1.6vw,19px);
+  font-weight:800;letter-spacing:-.4px;line-height:1.25;color:#173e69;
+}
+.main-form .dds-step-heading p{margin:0;color:#536b85;font-size:11px;line-height:1.45}
+.main-form .dds-step-heading .required-note{
+  margin-left:8px;align-self:center;padding-top:0;
+  color:#57718d;font-size:10px;
+}
+.main-form .section-divider{
+  margin:25px 0 18px;height:2px;background:linear-gradient(90deg,#a8c6e7,#e7edf6);
+}
+.main-form .dds-step-heading.content-heading{
+  margin-bottom:17px;
+  background:linear-gradient(110deg,#edf5ff 0%,#fbfdff 100%);
+}
+
+/* O checkbox deixa de herdar o tamanho dos inputs de texto. O cartão inteiro
+   permanece clicável pelo label nativo, com foco e seleção acessíveis. */
+.main-form .manual-blank-option{
+  display:grid;grid-template-columns:22px minmax(0,1fr);
+  align-items:center;gap:14px;width:100%;
+  margin:18px 0 0;padding:16px;
+  border:1px solid #d2dfed;border-radius:11px;
+  background:#f7faff;cursor:pointer;
+  transition:border-color .15s,background .15s,box-shadow .15s;
+}
+.main-form .manual-blank-option:hover{
+  border-color:#a8c5e3;background:#eff6ff;
+}
+.main-form .manual-blank-option:focus-within{
+  border-color:#3682c8;box-shadow:0 0 0 3px rgba(52,129,212,.13);
+}
+.main-form .manual-blank-option #manual-blank-dds{
+  display:block;flex:none;width:22px;height:22px;min-height:0;
+  margin:0;padding:0;accent-color:#1c5da8;cursor:pointer;
+  border-radius:5px;
+}
+.main-form .manual-blank-copy{
+  display:flex;flex-direction:column;gap:5px;min-width:0;
+}
+.main-form .manual-blank-copy strong{
+  font-size:13px;font-weight:800;color:#1f3d60;line-height:1.35;
+}
+.main-form .manual-blank-copy .field-hint{
+  margin:0;font-size:11px;line-height:1.5;color:#62768e;
+}
+@supports selector(.manual-blank-option:has(input:checked)){
+  .main-form .manual-blank-option:has(#manual-blank-dds:checked){
+    background:#ecf5ff;border-color:#82b0dc;
+  }
+}
+@media(max-width:720px){
+  .main-form .dds-step-heading{padding:13px 12px;gap:10px;margin-bottom:18px}
+  .main-form .dds-step-heading .step-badge{width:34px;height:34px;flex-basis:34px}
+  .main-form .dds-step-heading h2{font-size:16px}
+  .main-form .dds-step-heading p{font-size:10.5px}
+  .main-form .dds-step-heading .required-note{font-size:9px;white-space:normal;text-align:right}
+  .main-form .manual-blank-option{padding:13px;gap:12px}
+  .main-form .manual-blank-copy strong{font-size:12.5px}
+  .main-form .manual-blank-copy .field-hint{font-size:10.5px}
+}

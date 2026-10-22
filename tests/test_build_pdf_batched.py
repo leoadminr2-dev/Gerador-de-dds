@@ -318,5 +318,52 @@ class BatchedPdfBuildTests(unittest.TestCase):
                 dds._output_dir = original_output_dir
 
 
+    def test_original_vertical_grid_lines_remain_visible(self):
+        """As divisoes de colunas do formulario nao devem ser apagadas no recorte."""
+        import json
+        layout = json.loads(dds.LAYOUT_PATH.read_text(encoding="utf-8"))
+        staff = [
+            {"id": f"vertical-{index}", "name": f"COLABORADOR TESTE {index:03d}",
+             "shift": "DIURNO", "work_site": "GIG"}
+            for index in range(1, 30)
+        ]
+        payload = {"topic": "Teste das linhas verticais", "shift": "DIURNO",
+                   "work_site": "GIG", "date": "2026-10-22",
+                   "content": "OBJETIVO\\nValidar a grade da lista."}
+        original_output = dds.OUTPUT_DIR
+        original_output_dir = dds._output_dir
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                dds.OUTPUT_DIR = Path(directory)
+                dds._output_dir = lambda: Path(directory)
+                filename, _ = dds.build_pdf(payload, staff)
+                with fitz.open(dds.TEMPLATE_PATH) as original, fitz.open(Path(directory) / filename) as generated:
+                    for info in layout["pages"][:2]:
+                        page_index = info["page"]
+                        for row in info["rows"][:3]:
+                            cy = float(row["center"])
+                            for boundary in ("name", "area", "unit", "signature"):
+                                x = float(layout["columns"][boundary][0])
+                                clip = fitz.Rect(x - 0.9, cy - 2, x + 0.9, cy + 2)
+                                old = original[page_index].get_pixmap(
+                                    matrix=fitz.Matrix(3, 3), clip=clip, alpha=False)
+                                new = generated[page_index].get_pixmap(
+                                    matrix=fitz.Matrix(3, 3), clip=clip, alpha=False)
+                                self.assertEqual((old.width, old.height), (new.width, new.height))
+                                pixels = old.width * old.height
+                                changed = sum(
+                                    abs(old.samples[k] - new.samples[k]) > 70
+                                    for k in range(0, len(old.samples), 3)
+                                )
+                                self.assertLess(
+                                    changed / max(1, pixels), 0.10,
+                                    f"Divisoria vertical alterada na pagina {page_index+1}, "
+                                    f"linha {row['number']}, coluna {boundary}"
+                                )
+            finally:
+                dds.OUTPUT_DIR = original_output
+                dds._output_dir = original_output_dir
+
+
 if __name__ == "__main__":
     unittest.main()
