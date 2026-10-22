@@ -29,9 +29,12 @@ class BatchedPdfBuildTests(unittest.TestCase):
             "content": "OBJETIVO\nValidar a geração de um diálogo diário de segurança com muitos participantes.",
         }
         original_output = dds.OUTPUT_DIR
+        original_output_dir = dds._output_dir
         with tempfile.TemporaryDirectory() as directory:
             try:
                 dds.OUTPUT_DIR = Path(directory)
+                # Current multi-tenant storage resolves the output directory via this helper.
+                dds._output_dir = lambda: Path(directory)
                 filename, metadata = dds.build_pdf(payload, employees)
                 pdf_path = Path(directory) / filename
                 self.assertTrue(pdf_path.exists())
@@ -47,6 +50,7 @@ class BatchedPdfBuildTests(unittest.TestCase):
                 self.assertEqual(metadata["attendance_rows"], 115)
             finally:
                 dds.OUTPUT_DIR = original_output
+                dds._output_dir = original_output_dir
 
 
 if __name__ == "__main__":
