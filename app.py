@@ -1468,41 +1468,60 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     template_capacity=sum(len(p['rows']) for p in layout['pages'])
     required_rows=template_capacity if manual_blank else len(chosen)+BLANK_ATTENDANCE_ROWS
     doc=fitz.open(_active_template_path())
-    # Normalize the tone of straight table/grid strokes across every page of the DDS.
-    # Preserve each line's original coordinates and width; only the stroke color changes.
+    # Normalize gray grid strokes on every page without making rules thicker.
+    # Handle both stroked lines and thin filled rectangles (some template rules use fills).
     for template_page in doc:
         try:
             template_drawings = template_page.get_drawings()
         except Exception:
             template_drawings = []
         strokes_to_normalize = []
+        fills_to_normalize = []
         for drawing in template_drawings:
-            color = drawing.get('color')
+            stroke = drawing.get('color')
+            fill = drawing.get('fill')
             width = drawing.get('width') or 0.6
-            if color is None:
-                continue
-            # Restrict this pass to grayscale/near-gray strokes, leaving colored artwork intact.
-            if not (len(color) >= 3 and max(color[:3]) - min(color[:3]) <= 0.08):
+
+            def is_gray_rule_color(candidate):
+                return (
+                    candidate is not None
+                    and len(candidate) >= 3
+                    and max(candidate[:3]) - min(candidate[:3]) <= 0.08
+                    and max(candidate[:3]) < 0.92
+                )
+
+            gray_stroke = is_gray_rule_color(stroke)
+            gray_fill = is_gray_rule_color(fill)
+            if not gray_stroke and not gray_fill:
                 continue
             for item in drawing.get('items', []):
                 kind = item[0]
-                if kind == 'l':
+                if kind == 'l' and gray_stroke:
                     p1, p2 = item[1], item[2]
                     if abs(p1.x - p2.x) < 0.5 or abs(p1.y - p2.y) < 0.5:
-                        strokes_to_normalize.append((p1, p2, width))
+                        # Retain the source stroke width; change only its tone.
+                        strokes_to_normalize.append((p1, p2, max(0.35, min(float(width), 3.0))))
                 elif kind == 're':
                     rect = item[1]
-                    # Table rules and borders are long/thin rectangles; ignore compact artwork.
-                    if rect.width >= 80 and rect.height <= 2.2:
-                        strokes_to_normalize.append((fitz.Point(rect.x0, rect.y0 + rect.height/2),
-                                                     fitz.Point(rect.x1, rect.y0 + rect.height/2), width))
-                    elif rect.height >= 80 and rect.width <= 2.2:
-                        strokes_to_normalize.append((fitz.Point(rect.x0 + rect.width/2, rect.y0),
-                                                     fitz.Point(rect.x0 + rect.width/2, rect.y1), width))
+                    horizontal_rule = rect.width >= 20 and rect.height <= 4.0
+                    vertical_rule = rect.height >= 20 and rect.width <= 4.0
+                    if not (horizontal_rule or vertical_rule):
+                        continue
+                    if gray_fill:
+                        # Filled rules must be darkened as shapes, not as an extra center line.
+                        fills_to_normalize.append(rect)
+                    elif gray_stroke:
+                        if horizontal_rule:
+                            p1 = fitz.Point(rect.x0, rect.y0 + rect.height / 2)
+                            p2 = fitz.Point(rect.x1, rect.y0 + rect.height / 2)
+                        else:
+                            p1 = fitz.Point(rect.x0 + rect.width / 2, rect.y0)
+                            p2 = fitz.Point(rect.x0 + rect.width / 2, rect.y1)
+                        strokes_to_normalize.append((p1, p2, max(0.35, min(float(width), 3.0))))
+        for rect in fills_to_normalize:
+            template_page.draw_rect(rect, color=None, fill=(0, 0, 0), overlay=True)
         for p1, p2, stroke_width in strokes_to_normalize:
-            template_page.draw_line(p1, p2, color=(0, 0, 0),
-                                    width=max(0.45, min(float(stroke_width), 1.4)),
-                                    overlay=True)
+            template_page.draw_line(p1, p2, color=(0, 0, 0), width=stroke_width, overlay=True)
     roster_pages=prepare_attendance_pages(doc, layout, required_rows)
     # Queue text per page: insert_text wraps existing streams on every call.
     # Batching avoids repeated content-stream processing when many attendance rows are printed.
@@ -1521,11 +1540,43 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     centered_text(p,turn_display,100.5,206.5,341.8,font='helv',size=7.8,min_size=6.0,writer=writers[0])
     centered_text(p,duration,402.8,448.6,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
     centered_text(p,display_date,504.0,568.0,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
-    # The institutional template already contains preprinted supervisor names.
-    # Clear only the inside of that cell before rendering the selected shift's names,
-    # preventing the printed template text from overlapping the generated text.
+    # Remove any original supervisor text from the template before printing the selected shift.
+    # The template may contain full names or split text spans; erase only matching spans in this cell.
     supervisor_left, supervisor_right = 53.0, 269.0
     supervisor_top, supervisor_bottom = 358.5, 395.5
+    known_supervisor_tokens = set()
+    for name_list in SUPERVISORS.values():
+        for known_name in name_list:
+            known_supervisor_tokens.update(re.findall(r'[A-ZÀ-Ü0-9]+', known_name.upper()))
+    for known_name in UNIT_SUPERVISORS.values():
+        known_supervisor_tokens.update(re.findall(r'[A-ZÀ-Ü0-9]+', known_name.upper()))
+
+    redactions_added = 0
+    try:
+        for block in p.get_text("dict").get("blocks", []):
+            for line in block.get("lines", []):
+                for span in line.get("spans", []):
+                    span_text = re.sub(r'[^A-Z0-9]', '', str(span.get("text", "")).upper())
+                    if not span_text or not any(token in span_text for token in known_supervisor_tokens):
+                        continue
+                    x0, y0, x1, y1 = map(float, span.get("bbox", (0, 0, 0, 0)))
+                    # Only touch the responsible-person field; never mask body text or another cell.
+                    if x0 < 45.0 or x1 > 280.0 or y0 < 345.0 or y1 > 410.0:
+                        continue
+                    rect = fitz.Rect(max(48.8, x0 - 0.8), max(345.0, y0 - 0.8),
+                                     min(276.5, x1 + 0.8), min(410.0, y1 + 0.8))
+                    if rect.width > 0 and rect.height > 0:
+                        p.add_redact_annot(rect, fill=(1, 1, 1), cross_out=False)
+                        redactions_added += 1
+        if redactions_added:
+            # Remove the preprinted text precisely and clear overlapping image pixels if present;
+            # leave vector borders untouched.
+            p.apply_redactions(images=2, graphics=0, text=0)
+    except Exception:
+        # The fixed inset mask below remains as a safe fallback for image-only templates.
+        pass
+
+    # Backup mask clears the main text area while preserving the original cell borders.
     p.draw_rect(
         fitz.Rect(supervisor_left, supervisor_top, supervisor_right, supervisor_bottom),
         color=None, fill=(1, 1, 1), overlay=True
