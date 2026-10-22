@@ -1461,6 +1461,53 @@ def prepare_attendance_pages(doc, layout: dict, required_rows: int) -> list[dict
     return pages[:last_page_position + 1]
 
 
+# Todas as divisorias de presenca compartilham exatamente o mesmo traco.
+# Os contornos do modelo continuam no arquivo institucional; nao e feita
+# redacao, mascara branca ou redesenho das linhas horizontais.
+ATTENDANCE_VERTICAL_WIDTH_PT = 1.45
+
+
+def normalize_attendance_vertical_dividers(doc, layout: dict,
+                                            roster_pages: list[dict],
+                                            required_rows: int) -> None:
+    """Traça uma unica vertical continua por coluna e por pagina usada.
+
+    O arquivo institucional contem divisorias com intensidade irregular.
+    Um traco preto uniforme sobre cada eixo fixo do layout corrige essa
+    diferenca sem apagar a arte do modelo nem interferir nas horizontais.
+    """
+    columns = layout['columns']
+    boundaries = (
+        float(columns['number'][0]),
+        float(columns['name'][0]),
+        float(columns['area'][0]),
+        float(columns['unit'][0]),
+        float(columns['signature'][0]),
+        float(columns['signature'][1]),
+    )
+    remaining = required_rows
+    for info in roster_pages:
+        if remaining <= 0:
+            break
+        row_count = min(remaining, len(info['rows']))
+        if row_count <= 0:
+            break
+        first_row = info['rows'][0]
+        last_row = info['rows'][row_count - 1]
+        y_top = float(first_row['top'])
+        y_bottom = float(last_row['bottom'])
+        if y_bottom <= y_top:
+            raise ValueError('Limites invalidos para a grade de presenca.')
+        pg = doc[info['page']]
+        for x in boundaries:
+            pg.draw_line((x, y_top), (x, y_bottom),
+                         color=(0, 0, 0),
+                         width=ATTENDANCE_VERTICAL_WIDTH_PT, overlay=True)
+        remaining -= row_count
+    if remaining:
+        raise ValueError('A grade nao contem as linhas de presenca necessarias.')
+
+
 def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     if not _active_template_path().exists() or not LAYOUT_PATH.exists():
         raise RuntimeError('O modelo institucional não foi encontrado. Reinstale o pacote da Plataforma DDS.')
@@ -1636,6 +1683,9 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     finalize_pdf_pagination_and_footer(doc,work_site,writers=writers)
     for page_index, writer in writers.items():
         writer.write_text(doc[page_index], color=(0,0,0), overlay=True)
+    # Ultima camada vetorial: normaliza todas as divisorias, uma vez por pagina,
+    # em vez de engrossar trechos curtos em cada linha da tabela.
+    normalize_attendance_vertical_dividers(doc, layout, roster_pages, required_rows)
     emission_id=uuid.uuid4().hex[:8]
     generated_at=datetime.now()
     date_label=display_date.replace('/','-') if display_date else 'SEM_DATA'

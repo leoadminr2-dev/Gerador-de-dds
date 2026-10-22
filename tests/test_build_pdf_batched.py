@@ -318,51 +318,91 @@ class BatchedPdfBuildTests(unittest.TestCase):
                 dds._output_dir = original_output_dir
 
 
-    def test_original_vertical_grid_lines_remain_visible(self):
-        """As divisoes de colunas do formulario nao devem ser apagadas no recorte."""
+    def test_vertical_dividers_are_uniform_and_continuous_on_all_pages(self):
+        """Valida as seis linhas verticais, nao apenas um recorte pontual."""
         import json
         layout = json.loads(dds.LAYOUT_PATH.read_text(encoding="utf-8"))
-        staff = [
-            {"id": f"vertical-{index}", "name": f"COLABORADOR TESTE {index:03d}",
-             "shift": "DIURNO", "work_site": "GIG"}
-            for index in range(1, 30)
+        columns = layout["columns"]
+        positions = [
+            columns["number"][0], columns["name"][0], columns["area"][0],
+            columns["unit"][0], columns["signature"][0], columns["signature"][1],
         ]
-        payload = {"topic": "Teste das linhas verticais", "shift": "DIURNO",
-                   "work_site": "GIG", "date": "2026-10-22",
-                   "content": "OBJETIVO\\nValidar a grade da lista."}
-        original_output = dds.OUTPUT_DIR
-        original_output_dir = dds._output_dir
+        scenarios = [
+            # Primeira pagina recortada, duas paginas, pagina 3 e extensao.
+            ("curto", 3, False),
+            ("duas_paginas", 29, False),
+            ("manual_tres_paginas", 0, True),
+            ("extensao", 110, False),
+        ]
+        original_output, original_output_dir = dds.OUTPUT_DIR, dds._output_dir
         with tempfile.TemporaryDirectory() as directory:
             try:
                 dds.OUTPUT_DIR = Path(directory)
                 dds._output_dir = lambda: Path(directory)
-                filename, _ = dds.build_pdf(payload, staff)
-                with fitz.open(dds.TEMPLATE_PATH) as original, fitz.open(Path(directory) / filename) as generated:
-                    for info in layout["pages"][:2]:
-                        page_index = info["page"]
-                        for row in info["rows"][:3]:
-                            cy = float(row["center"])
-                            for boundary in ("name", "area", "unit", "signature"):
-                                x = float(layout["columns"][boundary][0])
-                                clip = fitz.Rect(x - 0.9, cy - 2, x + 0.9, cy + 2)
-                                old = original[page_index].get_pixmap(
-                                    matrix=fitz.Matrix(3, 3), clip=clip, alpha=False)
-                                new = generated[page_index].get_pixmap(
-                                    matrix=fitz.Matrix(3, 3), clip=clip, alpha=False)
-                                self.assertEqual((old.width, old.height), (new.width, new.height))
-                                pixels = old.width * old.height
-                                changed = sum(
-                                    abs(old.samples[k] - new.samples[k]) > 70
-                                    for k in range(0, len(old.samples), 3)
-                                )
-                                self.assertLess(
-                                    changed / max(1, pixels), 0.10,
-                                    f"Divisoria vertical alterada na pagina {page_index+1}, "
-                                    f"linha {row['number']}, coluna {boundary}"
-                                )
+                for label, staff_count, manual_blank in scenarios:
+                    with self.subTest(scenario=label):
+                        employees = [
+                            {"id": f"vertical-{i}", "name": f"COLABORADOR TESTE {i:03d}",
+                             "shift": "DIURNO", "work_site": "GIG"}
+                            for i in range(1, staff_count + 1)
+                        ]
+                        payload = {
+                            "topic": "Teste de colunas verticais", "shift": "DIURNO",
+                            "work_site": "GIG", "date": "2026-10-22",
+                            "content": "OBJETIVO\\nTestar a grade do DDS.",
+                            "manual_blank": manual_blank,
+                        }
+                        filename, metadata = dds.build_pdf(payload, employees)
+                        remaining = metadata["attendance_rows"]
+                        with fitz.open(Path(directory) / filename) as generated:
+                            for page_no, page in enumerate(generated):
+                                available_rows = layout["pages"][0]["rows"] if page_no == 0 else layout["pages"][min(page_no, 2)]["rows"]
+                                visible_count = min(remaining, len(available_rows))
+                                self.assertGreater(visible_count, 0)
+                                y0 = float(available_rows[0]["top"])
+                                y1 = float(available_rows[visible_count - 1]["bottom"])
+                                # Uma unica linha vetorial de largura idêntica
+                                # para cada limite do layout, do inicio ao fim.
+                                strokes = [
+                                    (item[1], item[2], draw["width"])
+                                    for draw in page.get_drawings()
+                                    if draw["type"] == "s" and draw["width"] is not None
+                                    and abs(draw["width"] - dds.ATTENDANCE_VERTICAL_WIDTH_PT) < .001
+                                    for item in draw["items"] if item[0] == "l"
+                                ]
+                                for x in positions:
+                                    found = [
+                                        (p0, p1, width)
+                                        for p0, p1, width in strokes
+                                        if abs(p0.x - x) < .01 and abs(p1.x - x) < .01
+                                        and abs(p0.y - y0) < .05
+                                        and abs(p1.y - y1) < .05
+                                    ]
+                                    self.assertEqual(
+                                        len(found), 1,
+                                        f"Falta uma divisoria unica e continua x={x} na pagina {page_no+1}."
+                                    )
+                                    # A linha tem de ser preta e visivel em
+                                    # alturas variadas (sem falhas entre celulas).
+                                    for fraction in (.04, .25, .49, .76, .96):
+                                        y = y0 + (y1 - y0) * fraction
+                                        clip = fitz.Rect(x - .25, y - .3, x + .25, y + .3)
+                                        pix = page.get_pixmap(matrix=fitz.Matrix(4, 4),
+                                                              clip=clip, alpha=False)
+                                        dark = sum(
+                                            1 for i in range(0, len(pix.samples), 3)
+                                            if min(pix.samples[i:i+3]) < 100
+                                        )
+                                        self.assertGreaterEqual(
+                                            dark / max(1, pix.width * pix.height), .60,
+                                            f"Falha visual na vertical {x} pagina {page_no+1}."
+                                        )
+                                remaining -= visible_count
+                        self.assertEqual(remaining, 0)
             finally:
                 dds.OUTPUT_DIR = original_output
                 dds._output_dir = original_output_dir
+
 
 
 if __name__ == "__main__":
