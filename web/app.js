@@ -472,10 +472,11 @@ $('dds-form').addEventListener('submit',ev=>{
  if(!topic){showError('Informe o tema do DDS.');$('topic').focus();return}
  if(!shift){showError('Selecione o turno do DDS.');$('shift-picker-trigger').focus();openShiftPicker();return}
  if(!content){showError('Gere uma sugestão de conteúdo ou escreva o conteúdo educativo antes de emitir o documento.');$('suggest-content').focus();return}
- const people=filteredEmployees();
- if(state.employees.length===0){showError('Importe a planilha de colaboradores antes de emitir o DDS. Isso evita gerar uma lista de presença incompleta.');return}
- if(!people.length){showError('Nenhum colaborador encontrado para a seleção. Confira turno, unidade e dados importados.');return}
- pendingGeneratePayload={topic,shift,work_site:$('operational-unit').value,unit:$('operational-unit').value,sector:'LIMPEZA',date:$('dds-date').value,duration:$('duration').value,content,employee_ids:people.map(person=>String(person.id))};
+ const manualBlank=$('manual-blank-dds')?.checked===true;
+ const people=manualBlank?[]:filteredEmployees();
+ if(!manualBlank&&state.employees.length===0){showError('Importe a planilha de colaboradores antes de emitir um DDS com participantes. Para preenchimento manual, selecione “DDS em branco — preenchimento manual”.');return}
+ if(!manualBlank&&!people.length){showError('Nenhum colaborador encontrado para a seleção. Confira turno, unidade e dados importados ou selecione o modo de preenchimento manual.');return}
+ pendingGeneratePayload={topic,shift,work_site:$('operational-unit').value,unit:$('operational-unit').value,sector:'LIMPEZA',date:$('dds-date').value,duration:$('duration').value,content,manual_blank:manualBlank,employee_ids:people.map(person=>String(person.id))};
  const supervisors=state.supervisors[shift]||[];
  $('preflight-topic').textContent=topic;
  const rawDate=$('dds-date').value;
@@ -483,8 +484,8 @@ $('dds-form').addEventListener('submit',ev=>{
  $('preflight-shift').textContent=shift==='TODOS'?'Todos os turnos':`${shiftLabel(shift)} (${shift})`;
  $('preflight-sector').textContent=unitLabel($('operational-unit').value);$('preflight-unit').textContent='GALEÃO';
  $('preflight-supervisors').textContent=supervisors.length?supervisors.join(' e '):'Responsável não identificado';
- $('preflight-count').textContent=`${people.length} participante${people.length===1?'':'s'}`;
- $('preflight-people').innerHTML=people.map((person,i)=>`<div class="preflight-person"><span>${i+1}</span><b>${esc(person.name)}</b><small>Unidade ${esc(person.unit||person.work_site||'Unidade não definida')} · Área LIMPEZA</small></div>`).join('');
+ $('preflight-count').textContent=manualBlank?'0 participantes · linhas em branco para preenchimento manual':`${people.length} participante${people.length===1?'':'s'}`;
+ $('preflight-people').innerHTML=manualBlank?'<div class="preflight-person"><b>Modo manual ativado</b><small>Nenhum nome será impresso. Todas as linhas de presença do modelo ficarão disponíveis para preenchimento à mão.</small></div>':people.map((person,i)=>`<div class="preflight-person"><span>${i+1}</span><b>${esc(person.name)}</b><small>Unidade ${esc(person.unit||person.work_site||'Unidade não definida')} · Área LIMPEZA</small></div>`).join('');
  $('preflight-modal').classList.remove('hidden');
 });
 function closePreflight(){pendingGeneratePayload=null;$('preflight-modal').classList.add('hidden')}
@@ -498,7 +499,7 @@ $('confirm-generate-btn').addEventListener('click',async()=>{
  try{
   const response=await api('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   lastPdfUrl=response.url;$('pdf-result-name').textContent=response.metadata.file;
-  $('pdf-result-meta').textContent=`${response.metadata.template_pages||3} páginas · ${response.metadata.participants} participantes · turno ${shiftLabel(response.metadata.shift)}`;
+  $('pdf-result-meta').textContent=`${response.metadata.template_pages||3} páginas · ${response.metadata.manual_blank?'preenchimento manual (sem nomes)':response.metadata.participants+' participantes'} · turno ${shiftLabel(response.metadata.shift)}`;
   $('pdf-modal-summary').textContent=`${response.metadata.topic} · ${response.metadata.date}`;
   $('open-pdf-link').href=response.url;$('print-pdf-link').href=response.url;$('pdf-modal').classList.remove('hidden');
   if(response.metadata.warnings?.length)response.metadata.warnings.forEach(w=>toast(w,'error'));
