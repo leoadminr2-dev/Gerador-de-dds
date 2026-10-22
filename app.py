@@ -1514,24 +1514,19 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
                     rect = fitz.Rect(max(48.8, x0 - 0.8), max(345.0, y0 - 0.8),
                                      min(276.5, x1 + 0.8), min(410.0, y1 + 0.8))
                     if rect.width > 0 and rect.height > 0:
-                        p.add_redact_annot(rect, fill=(1, 1, 1), cross_out=False)
+                        p.add_redact_annot(rect, fill=False, cross_out=False)
                         redactions_added += 1
         if redactions_added:
             # Remove the preprinted text precisely and clear overlapping image pixels if present;
             # leave vector borders untouched.
             p.apply_redactions(images=2, graphics=0, text=0)
     except Exception:
-        # The fixed inset mask below remains as a safe fallback for image-only templates.
+        # Never paint over the institutional cell as a fallback.
         pass
 
-    # Clear preprinted names and stray pixels in the band above the names.
-    # The institutional horizontal border is restored after the mask.
-    p.draw_rect(
-        fitz.Rect(supervisor_left, 350.0, supervisor_right, supervisor_bottom),
-        color=None, fill=(1, 1, 1), overlay=True
-    )
-    p.draw_line((supervisor_left, supervisor_top), (supervisor_right, supervisor_top),
-                color=(0, 0, 0), width=0.45, overlay=True)
+    # No background overlay: retain the original cell and all institutional rules.
+    # Existing printed supervisor glyphs are removed via targeted PDF text
+    # redactions above; only the selected names are drawn in this cell.
     supervisor_count = max(1, len(supervisor_names))
     supervisor_row_height = (supervisor_bottom - supervisor_top) / supervisor_count
     for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
