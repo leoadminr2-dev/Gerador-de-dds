@@ -1441,10 +1441,19 @@ def prepare_attendance_pages(doc, layout: dict, required_rows: int) -> list[dict
         x1 = float(columns['signature'][1])
         y0 = float(first_unused['top'])
         y1 = float(last_unused['bottom'])
-        # Remove unused slots completely while leaving all rows above intact.
-        page.add_redact_annot(fitz.Rect(x0, y0, x1, y1), fill=(1, 1, 1), cross_out=False)
-        page.apply_redactions(images=0)
-        page.draw_line((x0, y0), (x1, y0), color=(0, 0, 0), width=0.45, overlay=True)
+        # Ocultar somente o interior das linhas excedentes. A borda de cima
+        # e a propria borda da ultima linha em uso: preservar seu traco duplo
+        # original, sem substituir por linha artificial de 0,45 pt.
+        # Ignorar graficos vetoriais na remocao impede apagar, por inteiro,
+        # caminhos da tabela que atravessam a area recortada. O retangulo
+        # branco cobre apenas a parte efetivamente excedente.
+        trim_top = min(y0 + 1.8, y1)
+        if trim_top < y1:
+            page.add_redact_annot(
+                fitz.Rect(x0, trim_top, x1, y1),
+                fill=(1, 1, 1), cross_out=False
+            )
+            page.apply_redactions(images=0, graphics=0, text=0)
 
     final_page_index = last_info['page']
     if final_page_index < len(doc) - 1:
