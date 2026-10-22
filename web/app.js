@@ -804,7 +804,15 @@ async function loadState(showToast=false){
    }
   }
   Object.assign(state,r);renderStorageStatus(r);renderEmployeeSelection();refreshSummary();renderRoster();renderHistory();renderConfig();
-  if(state.employees.length||state.history.length)void refreshBrowserBackup();
+  // Não substitui um backup remoto existente por dados locais possivelmente
+  // antigos quando o servidor é reiniciado. Na primeira migração apenas,
+  // envia os dados atuais se ainda não existir cópia durável.
+  if(state.employees.length||state.history.length){
+   void durableVaultRead().then(remote=>{
+    if(!remote)return refreshBrowserBackup();
+    return true;
+   }).catch(err=>console.warn('Cofre DDS: conferência inicial indisponível.',err));
+  }
   if(showToast)toast('Dados atualizados.');
  }catch(err){toast(`Não foi possível carregar a plataforma: ${err.message}`,'error')}
 }
