@@ -1524,11 +1524,15 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
         # The fixed inset mask below remains as a safe fallback for image-only templates.
         pass
 
-    # Backup mask clears the main text area while preserving the original cell borders.
+    # Clear remnants that sit just above the responsible-name cell as well as the cell itself.
+    # The previous mask started at y=358.5 and left fragments in the strip immediately above it.
     p.draw_rect(
-        fitz.Rect(supervisor_left, supervisor_top, supervisor_right, supervisor_bottom),
+        fitz.Rect(supervisor_left, 350.0, supervisor_right, supervisor_bottom),
         color=None, fill=(1, 1, 1), overlay=True
     )
+    # Restore the original top border after masking the stray printed text.
+    p.draw_line((supervisor_left, supervisor_top), (supervisor_right, supervisor_top),
+                color=(0, 0, 0), width=0.45, overlay=True)
     supervisor_count = max(1, len(supervisor_names))
     supervisor_row_height = (supervisor_bottom - supervisor_top) / supervisor_count
     for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
