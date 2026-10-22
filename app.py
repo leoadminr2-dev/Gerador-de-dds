@@ -308,10 +308,40 @@ def storage_status() -> dict:
     }
 
 
+# Resposta pública expõe somente saúde booleana, nunca credenciais.
+# A chamada ao cofre é limitada a uma por minuto por processo.
+_VAULT_HEALTH_CACHE = {'checked_at': -1.0, 'ready': False}
+
+
+def check_durable_vault_health() -> bool:
+    if not HOSTED_MODE:
+        return False
+    now=time.monotonic()
+    if 0 <= now - _VAULT_HEALTH_CACHE['checked_at'] < 60.0:
+        return bool(_VAULT_HEALTH_CACHE['ready'])
+    endpoint=os.environ.get('DDS_VAULT_ENDPOINT','').strip().rstrip('/')
+    token=os.environ.get('DDS_VAULT_OWNER_TOKEN','').strip()
+    ready=False
+    if endpoint.startswith('https://') and len(token)>=50:
+        try:
+            req=Request(endpoint+'?action=ping',method='GET',
+                headers={'Accept':'application/json',
+                         'apikey':'sb_publishable_h1TBieh4mxQj0DZXDNu31w_C9HDenLR',
+                         'X-DDS-Owner-Token':token})
+            with urlopen(req,timeout=6) as response:
+                payload=json.loads(response.read(4096).decode('utf-8'))
+                ready=(response.status==200 and payload.get('vault_ready') is True)
+        except (HTTPError,URLError,TimeoutError,OSError,ValueError):
+            ready=False
+    _VAULT_HEALTH_CACHE.update(checked_at=now,ready=ready)
+    return ready
+
+
 @app.get('/healthz')
 def healthz():
     return jsonify({'ok': True, 'service': 'Gerador de DDS', 'hosted': HOSTED_MODE,
-                    'persistent_storage_configured': persistent_storage_available()})
+                    'persistent_storage_configured': persistent_storage_available(),
+                    'durable_vault_ready': check_durable_vault_health()})
 
 
 def normalize(value: Any) -> str:
