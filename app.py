@@ -1823,6 +1823,66 @@ def dds_vault_save_pdf(filename):
     return _vault_proxy('pdf', 'POST', body, filename=filename)
 
 
+
+# Em hospedagem, a gravação durável também acontece no servidor.
+# Não depende de manter a aba do navegador aberta após confirmar um DDS.
+@app.after_request
+def persist_dds_mutations_in_vault(response):
+    if (not HOSTED_MODE or not os.environ.get('DDS_VAULT_ENDPOINT')
+            or request.method not in {'POST','PUT','PATCH','DELETE'}
+            or not 200 <= response.status_code < 300):
+        return response
+    path=request.path
+    tracked=(
+        path.startswith('/api/topics') or path.startswith('/api/employees')
+        or path in {'/api/import-roster','/api/restore-backup',
+                    '/api/generate','/api/generate-bulk',
+                    '/api/template','/api/template/reset'}
+    )
+    if not tracked:
+        return response
+    try:
+        snapshot=backup_payload()
+        body=json.dumps(snapshot,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+        if len(body) <= 2 * 1024 * 1024:
+            saved=_vault_proxy('state','PUT',body)
+            response.headers['X-DDS-Vault-State'] = 'ok' if saved.status_code==200 else 'unavailable'
+            if saved.status_code!=200:
+                app.logger.warning('DDS: backup remoto falhou apos uma alteracao local, HTTP %s',saved.status_code)
+        else:
+            response.headers['X-DDS-Vault-State']='too-large'
+    except Exception as exc:
+        response.headers['X-DDS-Vault-State']='unavailable'
+        app.logger.warning('DDS: falha ao preparar backup remoto: %s',type(exc).__name__)
+    if path in {'/api/generate','/api/generate-bulk'}:
+        try:
+            result=response.get_json(silent=True) or {}
+            if path=='/api/generate':
+                files=[result.get('metadata',{}).get('file')]
+            else:
+                files=[item.get('metadata',{}).get('file')
+                       for item in result.get('generated',[])]
+            file_uploaded=True
+            for filename in files:
+                if not filename or not re.fullmatch(r'[A-Za-z0-9_.-]{1,180}\.pdf',filename,re.I):
+                    file_uploaded=False
+                    continue
+                candidate=_output_dir()/filename
+                if not candidate.is_file() or candidate.stat().st_size>10*1024*1024:
+                    file_uploaded=False
+                    continue
+                saved=_vault_proxy('pdf','POST',candidate.read_bytes(),filename)
+                if saved.status_code!=200:
+                    file_uploaded=False
+                    app.logger.warning('DDS: PDF sem backup duravel: %s, HTTP %s',
+                                       filename, saved.status_code)
+            response.headers['X-DDS-Vault-Pdf']='ok' if file_uploaded and files else 'unavailable'
+        except Exception as exc:
+            app.logger.warning('DDS: nao foi possivel sincronizar PDF: %s',type(exc).__name__)
+            response.headers['X-DDS-Vault-Pdf']='unavailable'
+    return response
+
+
 @app.get('/api/template')
 def get_template_settings():
     settings = {}

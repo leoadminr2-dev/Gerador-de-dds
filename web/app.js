@@ -304,6 +304,9 @@ async function api(url,options={}){
  const headers=await centralRequestHeaders(options.headers||{});
  const response=await fetch(url,{...options,headers});let body={};try{body=await response.json()}catch{}
  if(!response.ok)throw new Error(body.error||`Falha na solicitação (${response.status}).`);
+ if(url==='/api/generate'||url==='/api/generate-bulk'){
+   body.durable_pdf=response.headers.get('X-DDS-Vault-Pdf')==='ok';
+ }
  const method=String(options.method||'GET').toUpperCase();
  if(['POST','PUT','PATCH','DELETE'].includes(method))await refreshBrowserBackup();
  return body;
@@ -564,7 +567,9 @@ $('bulk-generate-confirm').addEventListener('click',async()=>{
   const failures=(result.failures||[]).map(x=>`<div class="bulk-result-note error">Falha: ${esc(shiftLabel(x.shift))} · ${esc(x.unit)} — ${esc(x.error)}</div>`);
   $('bulk-result-list').innerHTML=[...rows,...skipped,...failures].join('')||'<p>Nenhum PDF foi gerado.</p>';
   $('bulk-result-modal').classList.remove('hidden');
-  for(const item of generated){if(item.url)await savePdfWithWarning(item.url);}
+  if(!result.durable_pdf){
+   for(const item of generated){if(item.url)await savePdfWithWarning(item.url);}
+  }
   toast(`Geração em massa concluída: ${result.count} PDF(s).`);
  }catch(err){closeBulkModal();showError(err.message);toast(err.message,'error')}
  finally{button.disabled=false;button.textContent='Gerar PDF único →'}
@@ -629,7 +634,7 @@ $('confirm-generate-btn').addEventListener('click',async()=>{
   if(meta.warnings?.length)meta.warnings.forEach(w=>toast(w,'error'));
   if(meta.font_adjusted)toast('O texto foi ajustado para caber no espaço do formulário. Confira a legibilidade no PDF.','error');
   state.history.unshift(meta);state.history=state.history.slice(0,100);renderHistory();
-  await savePdfWithWarning(generated.url);
+  if(!response.durable_pdf)await savePdfWithWarning(generated.url);
   toast('PDF gerado. Confira o documento antes de imprimir.');
  }catch(err){showError(err.message);toast(err.message,'error')}
  finally{button.disabled=false;button.innerHTML='<span>GERAR DDS</span><span class="arrow">→</span>'}
