@@ -6,6 +6,7 @@ const DDS_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_kw2FlQEMXwF9IwLKqPM13w_bMDr
 let ddsCentralClient = null;
 let centralAuthRequired = false;
 let centralAppStarted = false;
+let ownerSessionActive = false;
 
 function centralGateMessage(message, error=false){
  const node=$('central-auth-message');if(node){node.textContent=message||'';node.style.color=error?'#ffb8bf':'#ffd78a'}
@@ -17,7 +18,7 @@ function showCentralGate(message, error=false){
 function hideCentralGate(){const gate=$('central-auth-gate');if(gate)gate.hidden=true}
 async function centralRequestHeaders(extra={}){
  const headers=new Headers(extra||{});
- if(!centralAuthRequired)return headers;
+ if(!centralAuthRequired||ownerSessionActive)return headers;
  if(!ddsCentralClient)throw new Error('O login central ainda não foi inicializado.');
  const {data,error}=await ddsCentralClient.auth.getSession();
  if(error||!data.session)throw new Error('Entre novamente na sua conta da Central.');
@@ -67,15 +68,69 @@ async function checkDdsLicense(){
  return false;
 }
 async function initializeCentralGate(){
- const gate=$('central-auth-gate');
+ let health={};
  try{
-   const response=await fetch('/api/health',{cache:'no-store',headers:await centralRequestHeaders({'Accept':'application/json'})});
-   const health=response.ok?await response.json():{};
-   centralAuthRequired=!!health.central_auth_required;
- }catch(_){centralAuthRequired=false}
+   const response=await fetch('/api/health',{cache:'no-store',headers:{'Accept':'application/json'}});
+   health=response.ok?await response.json():{};
+ }catch(_){}
+ centralAuthRequired=!!health.central_auth_required;
  if(!centralAuthRequired){hideCentralGate();await initializeApp();return}
- showCentralGate('Entre com sua conta da Central para validar a licença.');
- if(!window.supabase){centralGateMessage('Não foi possível carregar o módulo de autenticação. Verifique a conexão e recarregue a página.',true);return}
+ let ownerInfo={enabled:false,authenticated:false};
+ try{
+   const response=await fetch('/api/owner-session',{cache:'no-store',headers:{'Accept':'application/json'}});
+   ownerInfo=response.ok?await response.json():ownerInfo;
+ }catch(_){}
+ const ownerForm=$('owner-login-form');
+ const centralWrap=$('central-login-wrap');
+ const showCentral=$('show-central-login');
+ const showOwner=$('show-owner-login');
+ if(ownerInfo.authenticated){
+   ownerSessionActive=true;
+   if(ownerInfo.user_id)BROWSER_BACKUP_KEY='gerador-dds.browser-backup.v1.'+ownerInfo.user_id;
+   hideCentralGate();
+   centralAppStarted=true;
+   await initializeApp();
+   return;
+ }
+ if(ownerForm)ownerForm.hidden=!ownerInfo.enabled;
+ if(centralWrap)centralWrap.hidden=!!ownerInfo.enabled;
+ if(showCentral)showCentral.hidden=!ownerInfo.enabled;
+ if(showOwner)showOwner.hidden=true;
+ showCentralGate(ownerInfo.enabled?'Entre com seu acesso pessoal ao Gerador de DDS.':'Entre com sua conta da Central para validar a licença.');
+ if(ownerForm)ownerForm.addEventListener('submit',async e=>{
+   e.preventDefault();
+   const button=$('owner-login-button');button.disabled=true;
+   try{
+     centralGateMessage('Validando seu acesso pessoal…');
+     const response=await fetch('/api/owner-login',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:$('owner-login-email').value.trim(),password:$('owner-login-password').value})});
+     const data=await response.json().catch(()=>({}));
+     if(!response.ok||!data.ok)throw new Error(data.error||'Não foi possível validar o acesso pessoal.');
+     ownerSessionActive=true;
+     if(data.user_id)BROWSER_BACKUP_KEY='gerador-dds.browser-backup.v1.'+data.user_id;
+     hideCentralGate();
+     centralAppStarted=true;
+     await initializeApp();
+   }catch(err){centralGateMessage(err.message||'Falha no acesso pessoal.',true)}
+   finally{button.disabled=false}
+ });
+ showCentral?.addEventListener('click',()=>{
+   if(ownerForm)ownerForm.hidden=true;
+   if(centralWrap)centralWrap.hidden=false;
+   showCentral.hidden=true;
+   if(showOwner)showOwner.hidden=false;
+   centralGateMessage('Entre com sua conta da Central para validar a licença.');
+ });
+ showOwner?.addEventListener('click',()=>{
+   if(ownerForm)ownerForm.hidden=false;
+   if(centralWrap)centralWrap.hidden=true;
+   if(showCentral)showCentral.hidden=false;
+   showOwner.hidden=true;
+   centralGateMessage('Entre com seu acesso pessoal ao Gerador de DDS.');
+ });
+ if(!window.supabase){
+   if(!ownerInfo.enabled)centralGateMessage('Não foi possível carregar o módulo de autenticação. Verifique a conexão e recarregue a página.',true);
+   return;
+ }
  ddsCentralClient=window.supabase.createClient(DDS_SUPABASE_URL,DDS_SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  $('central-login-form').addEventListener('submit',async e=>{
    e.preventDefault();const button=$('central-login-button');button.disabled=true;
