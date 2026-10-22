@@ -214,5 +214,109 @@ class BatchedPdfBuildTests(unittest.TestCase):
                 dds._output_dir = original_output_dir
 
 
+    def test_attendance_row_grid_stays_identical_at_last_used_border(self):
+        """A ultima linha mantida nao pode substituir o tracado original do PDF."""
+        with fitz.open(dds.TEMPLATE_PATH) as original:
+            layout = __import__("json").loads(dds.LAYOUT_PATH.read_text(encoding="utf-8"))
+            for count in (3, 25):
+                with self.subTest(colaboradores=count):
+                    staff = [
+                        {"id": str(i), "name": f"COLABORADOR TESTE {i:03d}",
+                         "shift": "DIURNO", "work_site": "GIG"}
+                        for i in range(1, count + 1)
+                    ]
+                    payload = {
+                        "topic": "Auditoria das linhas de presenca",
+                        "shift": "DIURNO", "work_site": "GIG",
+                        "date": "2026-10-22", "content": "OBJETIVO\\nVerificar a tabela."
+                    }
+                    original_output = dds.OUTPUT_DIR
+                    original_output_dir = dds._output_dir
+                    with tempfile.TemporaryDirectory() as directory:
+                        try:
+                            dds.OUTPUT_DIR = Path(directory)
+                            dds._output_dir = lambda: Path(directory)
+                            filename, _ = dds.build_pdf(payload, staff)
+                            with fitz.open(Path(directory) / filename) as generated:
+                                target_count = count + dds.BLANK_ATTENDANCE_ROWS
+                                for info in layout["pages"]:
+                                    if target_count > len(info["rows"]):
+                                        target_count -= len(info["rows"])
+                                        continue
+                                    if target_count == len(info["rows"]):
+                                        break
+                                    # Primeira linha removida: sua borda superior
+                                    # e tambem borda inferior da ultima linha preservada.
+                                    y = float(info["rows"][target_count]["top"])
+                                    rect = fitz.Rect(22.3, y - 0.5, 569.3, y + 0.6)
+                                    a = original[info["page"]].get_pixmap(
+                                        matrix=fitz.Matrix(3, 3), clip=rect, alpha=False)
+                                    b = generated[info["page"]].get_pixmap(
+                                        matrix=fitz.Matrix(3, 3), clip=rect, alpha=False)
+                                    self.assertEqual((a.width,a.height), (b.width,b.height))
+                                    total = a.width * a.height
+                                    different = sum(
+                                        abs(a.samples[k] - b.samples[k]) > 70
+                                        for k in range(0, min(len(a.samples), len(b.samples)), 3)
+                                    )
+                                    self.assertLess(
+                                        different / max(total, 1), 0.09,
+                                        "O limite da tabela foi apagado/reconstruido, "
+                                        "alterando a linha institucional original."
+                                    )
+                                    break
+                        finally:
+                            dds.OUTPUT_DIR = original_output
+                            dds._output_dir = original_output_dir
+
+    def test_employee_names_numbers_and_areas_remain_inside_cells(self):
+        layout = __import__("json").loads(dds.LAYOUT_PATH.read_text(encoding="utf-8"))
+        staff = [
+            {"id": str(i), "name": f"COLABORADOR TESTE {i:03d}",
+             "shift": "DIURNO", "work_site": "GIG"}
+            for i in range(1, 30)
+        ]
+        payload = {"topic": "Auditoria das celulas de colaboradores",
+                   "shift": "DIURNO", "work_site": "GIG",
+                   "date": "2026-10-22", "content": "OBJETIVO\\nVerificar os nomes."}
+        original_output = dds.OUTPUT_DIR
+        original_output_dir = dds._output_dir
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                dds.OUTPUT_DIR = Path(directory)
+                dds._output_dir = lambda: Path(directory)
+                filename, _ = dds.build_pdf(payload, staff)
+                with fitz.open(Path(directory) / filename) as generated:
+                    for info in layout["pages"][:len(generated)]:
+                        page = generated[info["page"]]
+                        all_words = page.get_text("words")
+                        for row in info["rows"]:
+                            n = int(row["number"])
+                            if n > len(staff):
+                                break
+                            top, bottom = float(row["top"]), float(row["bottom"])
+                            cell_words = [w for w in all_words
+                                          if top - 0.3 <= w[1] < bottom]
+                            numbers = [w for w in cell_words
+                                       if 22.3 <= w[0] and w[2] <= 48.6
+                                       and w[4] == str(n)]
+                            self.assertEqual(len(numbers), 1, f"Numero {n}")
+                            name_words = [w for w in cell_words
+                                          if w[4] == "COLABORADOR"]
+                            self.assertEqual(len(name_words), 1, f"Nome {n}")
+                            for w in name_words:
+                                self.assertGreater(w[0], 48.6)
+                                self.assertLess(w[2], 276.8)
+                                self.assertGreater(w[1], top)
+                                self.assertLess(w[3], bottom)
+                            area = [w for w in cell_words if w[4] == "LIMPEZA"]
+                            self.assertEqual(len(area), 1, f"Area {n}")
+                            self.assertGreater(area[0][0], 276.8)
+                            self.assertLess(area[0][2], 346.4)
+            finally:
+                dds.OUTPUT_DIR = original_output
+                dds._output_dir = original_output_dir
+
+
 if __name__ == "__main__":
     unittest.main()
