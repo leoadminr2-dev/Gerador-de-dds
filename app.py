@@ -1544,8 +1544,8 @@ def upload_template():
         if candidate.stat().st_size <= 0 or candidate.stat().st_size > MAX_UPLOAD_BYTES:
             raise ValueError('O arquivo está vazio ou ultrapassa o limite de 15 MB.')
         with fitz.open(candidate) as document:
-            if not len(document) or len(document) > 100:
-                raise ValueError('O PDF precisa conter de 1 a 100 páginas.')
+            if len(document) < 3 or len(document) > 100:
+                raise ValueError('O PDF deve conter de 3 a 100 páginas, incluindo a página de continuação da lista de presença.')
         settings = {'active': 'custom', 'custom_filename': candidate.name,
                     'display_name': secure_filename(uploaded.filename)[:120] or 'Modelo institucional personalizado',
                     'updated_at': datetime.now().isoformat(timespec='seconds')}
