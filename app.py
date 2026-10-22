@@ -1154,8 +1154,9 @@ def parse_xlsx(file_storage, current_month: int | None = None) -> tuple[list[dic
                 name=vals[0]
                 if normalize(name) in ('NOME','COLABORADOR','FUNCIONARIO','FUNCIONARIOS','LISTA DE COLABORADORES'): continue
                 employee = clean_employee({'name':name,'shift':sheet_shift,'area':'LIMPEZA','sector':'LIMPEZA','unit':'','operational_unit':'','work_site':'','source_sheet':ws.title})
-            employee['_area_missing'] = True
-            parsed.append(employee)
+                employee['_area_missing'] = True
+                parsed.append(employee)
+            notes.append(f'Aba “{ws.title}”: lista simples importada; confira a unidade de cada colaborador antes de gerar o DDS.')
             continue
         headers=[str(v or '').strip() for v in rows[header_idx]]
         nidx=col_index(headers,name_cols)
@@ -2170,7 +2171,12 @@ def generate_bulk():
                 for employee in state['employees']:
                     site=(canonical_site(employee.get('work_site')) or canonical_site(employee.get('operational_unit')) or canonical_site(employee.get('sector')))
                     if employee.get('shift')==shift and normalize(site)==normalize(unit): matching.append(employee)
-                if not matching:
+                blank_mode = body.get('manual_blank') is True
+                requested_ids = body.get('employee_ids')
+                if isinstance(requested_ids, list) and requested_ids:
+                    selected_ids = {str(item) for item in requested_ids}
+                    matching = [e for e in matching if str(e.get('id', '')) in selected_ids]
+                if not matching and not blank_mode:
                     skipped.append({'topic':topic_item['topic'],'shift':shift,'unit':unit,'reason':'Nenhum colaborador cadastrado para esta combinação.'})
                     continue
                 payload={**body,**topic_item,'shift':shift,'work_site':unit,'unit':unit,'sector':'LIMPEZA','duration':'01:00','date':iso_date}

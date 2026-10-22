@@ -25,6 +25,43 @@ async function centralRequestHeaders(extra={}){
  headers.set('Authorization','Bearer '+data.session.access_token);
  return headers;
 }
+/* Os links normais de PDF nao enviam Authorization: Bearer. Baixar o
+   documento com fetch autenticado e abrir um blob local (sem expor token
+   na URL), inclusive no historico e no botao de impressao. */
+async function openProtectedPdf(path,print=false){
+ if(!/^\/api\/files\/[a-zA-Z0-9_%().-]+$/.test(String(path||''))){
+  throw new Error('Endereço de PDF inválido.');
+ }
+ const viewer=window.open('about:blank','_blank');
+ if(viewer){viewer.document.title='Abrindo DDS';viewer.document.body.textContent='Carregando PDF protegido…';}
+ try{
+  const headers=await centralRequestHeaders({'Accept':'application/pdf'});
+  const response=await fetch(path,{headers,cache:'no-store',credentials:'same-origin'});
+  if(!response.ok){
+   let error={};try{error=await response.json()}catch(_){}
+   throw new Error(error.error||`Não foi possível abrir o PDF (${response.status}).`);
+  }
+  const contentType=response.headers.get('content-type')||'';
+  if(!contentType.includes('application/pdf'))throw new Error('O servidor não retornou um PDF.');
+  const objectUrl=URL.createObjectURL(await response.blob());
+  if(viewer){
+   viewer.location.replace(objectUrl);
+  }else{
+   const link=document.createElement('a');
+   link.href=objectUrl;
+   link.download=decodeURIComponent(path.split('/').pop()||'DDS.pdf');
+   document.body.appendChild(link);link.click();link.remove();
+   toast('Abertura de nova aba bloqueada: PDF baixado para visualização.');
+  }
+  if(print)toast('Documento aberto. Use a opção Imprimir do visualizador de PDF.');
+  // Revoga o URL temporário após tempo suficiente para carregar/baixar.
+  setTimeout(()=>URL.revokeObjectURL(objectUrl),10*60*1000);
+ }catch(err){
+  if(viewer&&!viewer.closed)viewer.close();
+  throw err;
+ }
+}
+
 async function showDdsPixCharge(){
  const box=$('central-pay-box');if(box)box.hidden=false;
  centralGateMessage('Seu período de teste terminou. Preparando a renovação Pix de R$ 15,99…');
@@ -184,7 +221,8 @@ function readBrowserBackup(){
 }
 async function refreshBrowserBackup(){
  try{
-  const response=await fetch('/api/backup-data',{cache:'no-store',headers:{'Accept':'application/json'}});
+  const headers=await centralRequestHeaders({'Accept':'application/json'});
+  const response=await fetch('/api/backup-data',{cache:'no-store',headers,credentials:'same-origin'});
   if(!response.ok)return false;
   const backup=await response.json();
   if(backup?.format!=='gerador-dds-backup'||backup?.backup_version!==1||!Array.isArray(backup?.state?.employees))return false;
@@ -454,7 +492,7 @@ $('bulk-generate-confirm').addEventListener('click',async()=>{
   closeBulkModal();
   const generated=result.generated||[];generated.forEach(item=>{if(item.metadata){state.history.unshift(item.metadata)}});state.history=state.history.slice(0,100);renderHistory();
   $('bulk-result-summary').textContent=`${result.count} arquivo PDF único gerado. Foram reunidos ${result.document_count||0} DDS de ${result.topics_count||topics.length} tema(s). ${result.skipped?.length||0} combinação(ões) sem colaboradores ignorada(s). ${result.failures?.length||0} falha(s).`;
-  const rows=generated.map(item=>{const m=item.metadata;return `<div class="bulk-result-item"><div><b>PDF consolidado · ${esc(m.unit)}</b><small>${esc(m.topic)} · ${m.participants} participação(ões) contabilizadas · ${esc(m.file)}</small></div><a class="button secondary small" href="${esc(item.url)}" target="_blank" rel="noopener">Abrir PDF único</a></div>`});
+  const rows=generated.map(item=>{const m=item.metadata;return `<div class="bulk-result-item"><div><b>PDF consolidado · ${esc(m.unit)}</b><small>${esc(m.topic)} · ${m.participants} participação(ões) contabilizadas · ${esc(m.file)}</small></div><a class="button secondary small" data-dds-pdf href="${esc(item.url)}" target="_blank" rel="noopener">Abrir PDF único</a></div>`});
   const skipped=(result.skipped||[]).map(x=>`<div class="bulk-result-note">Ignorado: ${esc(shiftLabel(x.shift))} · ${esc(x.unit)} — ${esc(x.reason)}</div>`);
   const failures=(result.failures||[]).map(x=>`<div class="bulk-result-note error">Falha: ${esc(shiftLabel(x.shift))} · ${esc(x.unit)} — ${esc(x.error)}</div>`);
   $('bulk-result-list').innerHTML=[...rows,...skipped,...failures].join('')||'<p>Nenhum PDF foi gerado.</p>';
@@ -465,6 +503,11 @@ $('bulk-generate-confirm').addEventListener('click',async()=>{
 });
 ['bulk-result-close','bulk-result-done'].forEach(id=>$(id).addEventListener('click',()=>$('bulk-result-modal').classList.add('hidden')));
 $('bulk-result-modal').addEventListener('click',e=>{if(e.target===$('bulk-result-modal'))$('bulk-result-modal').classList.add('hidden')});
+$('bulk-result-list').addEventListener('click',e=>{
+ const link=e.target.closest('a[data-dds-pdf]');
+ if(!link)return;
+ e.preventDefault();openProtectedPdf(link.getAttribute('href')).catch(err=>toast(err.message,'error'));
+});
 
 $('dds-form').addEventListener('submit',ev=>{
  ev.preventDefault();clearError();
@@ -497,18 +540,35 @@ $('confirm-generate-btn').addEventListener('click',async()=>{
  const payload={...pendingGeneratePayload};pendingGeneratePayload=null;$('preflight-modal').classList.add('hidden');
  const button=$('generate-btn');button.disabled=true;button.innerHTML='<span>Preparando o documento…</span><span class="arrow">…</span>';
  try{
-  const response=await api('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  lastPdfUrl=response.url;$('pdf-result-name').textContent=response.metadata.file;
-  $('pdf-result-meta').textContent=`${response.metadata.template_pages||3} páginas · ${response.metadata.manual_blank?'preenchimento manual (sem nomes)':response.metadata.participants+' participantes'} · turno ${shiftLabel(response.metadata.shift)}`;
-  $('pdf-modal-summary').textContent=`${response.metadata.topic} · ${response.metadata.date}`;
-  $('open-pdf-link').href=response.url;$('print-pdf-link').href=response.url;$('pdf-modal').classList.remove('hidden');
-  if(response.metadata.warnings?.length)response.metadata.warnings.forEach(w=>toast(w,'error'));
-  if(response.metadata.font_adjusted)toast('O texto foi ajustado para caber no espaço do formulário. Confira a legibilidade no PDF.','error');
-  state.history.unshift(response.metadata);state.history=state.history.slice(0,100);renderHistory();
+  // "TODOS" significa uma emissão por turno, reunida num único PDF.
+  const allShifts=payload.shift==='TODOS';
+  const response=allShifts
+   ?await api('/api/generate-bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      ...payload,shifts:['DIURNO','VESPERTINO','NOTURNO'],units:[payload.work_site],
+      topics:[{topic:payload.topic,content:payload.content}]
+     })})
+   :await api('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const generated=allShifts?response.generated?.[0]:response;
+  if(!generated?.url||!generated?.metadata)throw new Error('Nenhum DDS foi emitido. Confira o turno, unidade e participantes.');
+  const meta=generated.metadata;
+  if(allShifts&&(response.skipped?.length||response.failures?.length)){
+   toast(`Emissão parcial: ${response.skipped?.length||0} turno(s) sem colaboradores e ${response.failures?.length||0} falha(s). Confira o resultado.`,'error');
+  }
+  lastPdfUrl=generated.url;$('pdf-result-name').textContent=meta.file;
+  $('pdf-result-meta').textContent=`${meta.template_pages||3} páginas · ${meta.manual_blank?'preenchimento manual (sem nomes)':meta.participants+' participantes'} · turno ${shiftLabel(meta.shift)}`;
+  $('pdf-modal-summary').textContent=`${meta.topic} · ${meta.date}`;
+  $('open-pdf-link').href=generated.url;$('print-pdf-link').href=generated.url;$('pdf-modal').classList.remove('hidden');
+  if(meta.warnings?.length)meta.warnings.forEach(w=>toast(w,'error'));
+  if(meta.font_adjusted)toast('O texto foi ajustado para caber no espaço do formulário. Confira a legibilidade no PDF.','error');
+  state.history.unshift(meta);state.history=state.history.slice(0,100);renderHistory();
   toast('PDF gerado. Confira o documento antes de imprimir.');
  }catch(err){showError(err.message);toast(err.message,'error')}
  finally{button.disabled=false;button.innerHTML='<span>GERAR DDS</span><span class="arrow">→</span>'}
 });
+['open-pdf-link','print-pdf-link'].forEach(id=>$(id).addEventListener('click',e=>{
+ e.preventDefault();
+ openProtectedPdf(e.currentTarget.getAttribute('href'),id==='print-pdf-link').catch(err=>toast(err.message,'error'));
+}));
 ['close-pdf-modal','close-pdf-modal-2'].forEach(id=>$(id).addEventListener('click',()=>$('pdf-modal').classList.add('hidden')));$('pdf-modal').addEventListener('click',e=>{if(e.target===$('pdf-modal'))$('pdf-modal').classList.add('hidden')});document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('pdf-modal').classList.add('hidden');closePreflight();closeEmployeeEdit()}});
 
 // Roster import and manual records
@@ -558,7 +618,13 @@ $('employee-edit-form').addEventListener('submit',async e=>{
  finally{save.disabled=false;save.textContent='Salvar alterações'}
 });
 
-function renderHistory(){const all=state.history||[];const q=norm($('history-search')?.value||'');const shift=$('history-shift-filter')?.value||'TODOS';const list=all.filter(h=>(!q||norm(`${h.topic||''} ${h.unit||''} ${h.work_site||''} ${h.sector||''} ${h.date||''} ${h.file||''}`).includes(q))&&(shift==='TODOS'||h.shift===shift));if(!list.length){$('history-body').innerHTML=`<tr><td colspan="6" class="empty-state">${all.length?'Nenhuma emissão corresponde aos filtros.':'Nenhum DDS gerado ainda.'}</td></tr>`;return}$('history-body').innerHTML=list.map(h=>`<tr><td>${esc(h.date)}</td><td><b>${esc(h.topic)}</b></td><td><span class="shift-pill ${(h.shift||'').toLowerCase()}">${esc(shiftLabel(h.shift))}</span></td><td>${esc(h.unit||'GIG')} · ${esc(h.work_site||'Todas as unidades')}</td><td>${esc(h.participants)}</td><td><a class="history-link" href="/api/files/${encodeURIComponent(h.file)}" target="_blank" rel="noopener">Abrir PDF ↗</a></td></tr>`).join('')}
+function renderHistory(){const all=state.history||[];const q=norm($('history-search')?.value||'');const shift=$('history-shift-filter')?.value||'TODOS';const list=all.filter(h=>(!q||norm(`${h.topic||''} ${h.unit||''} ${h.work_site||''} ${h.sector||''} ${h.date||''} ${h.file||''}`).includes(q))&&(shift==='TODOS'||h.shift===shift));if(!list.length){$('history-body').innerHTML=`<tr><td colspan="6" class="empty-state">${all.length?'Nenhuma emissão corresponde aos filtros.':'Nenhum DDS gerado ainda.'}</td></tr>`;return}$('history-body').innerHTML=list.map(h=>`<tr><td>${esc(h.date)}</td><td><b>${esc(h.topic)}</b></td><td><span class="shift-pill ${(h.shift||'').toLowerCase()}">${esc(shiftLabel(h.shift))}</span></td><td>${esc(h.unit||'GIG')} · ${esc(h.work_site||'Todas as unidades')}</td><td>${esc(h.participants)}</td><td><a class="history-link" data-dds-pdf href="/api/files/${encodeURIComponent(h.file)}" target="_blank" rel="noopener">Abrir PDF ↗</a></td></tr>`).join('')}
+$('history-body').addEventListener('click',e=>{
+ const link=e.target.closest('a[data-dds-pdf]');
+ if(!link)return;
+ e.preventDefault();
+ openProtectedPdf(link.getAttribute('href')).catch(err=>toast(err.message,'error'));
+});
 $('history-search')?.addEventListener('input',renderHistory);$('history-shift-filter')?.addEventListener('change',renderHistory);
 async function refreshTemplateSettings(){
  const name=$('template-current-name'),help=$('template-current-help'),reset=$('template-use-default');
@@ -645,20 +711,26 @@ function renderStorageStatus(info){
  card.setAttribute('aria-label',info.persistent_storage_configured?'Dados da aplicação salvos':'Cópia de segurança deste navegador');
  if(icon)icon.textContent=info.persistent_storage_configured?'✓':'↻';
 }
+let browserRestorePrompted=false;
 async function loadState(showToast=false){
  try{
   let r=await api('/api/state');
-  if(!r.employees?.length){
+  if(!r.employees?.length&&!browserRestorePrompted){
    const backup=readBrowserBackup();
    if(backup?.state?.employees?.length){
-    const restoreHeaders=await centralRequestHeaders({'Content-Type':'application/json'});const response=await fetch('/api/restore-backup',{method:'POST',headers:restoreHeaders,body:JSON.stringify(backup)});
-    let body={};try{body=await response.json()}catch{}
-    if(response.ok){
-     r=await api('/api/state');
-     toast(`Lista recuperada automaticamente da cópia deste navegador: ${body.employees} colaboradores.`);
-    }else{
-     toast(`Há uma cópia de segurança neste navegador, mas a recuperação falhou: ${body.error||response.statusText}`,'error');
-    }
+    browserRestorePrompted=true;
+    // Nunca sobrescrever o servidor automaticamente com uma cópia
+    // possivelmente antiga. A pessoa precisa aprovar a recuperação.
+    const count=backup.state.employees.length;
+    if(window.confirm(`Servidor sem colaboradores. Existe uma cópia neste navegador com ${count} colaboradores. Deseja restaurá-la agora? Os dados atuais do servidor serão substituídos.`)){
+     const restoreHeaders=await centralRequestHeaders({'Content-Type':'application/json'});
+     const response=await fetch('/api/restore-backup',{method:'POST',headers:restoreHeaders,credentials:'same-origin',body:JSON.stringify(backup)});
+     const result=await response.json().catch(()=>({}));
+     if(response.ok){
+      r=await api('/api/state');
+      toast(`Cópia restaurada com sua confirmação: ${result.employees} colaboradores.`);
+     }else{toast(`Não foi possível restaurar: ${result.error||response.status}`,'error')}
+    }else{toast('Cópia de segurança disponível em Configurações, sem modificar os dados.')}
    }
   }
   Object.assign(state,r);renderStorageStatus(r);renderEmployeeSelection();refreshSummary();renderRoster();renderHistory();renderConfig();
