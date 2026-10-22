@@ -1486,21 +1486,24 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     centered_text(p,turn_display,100.5,206.5,341.8,font='helv',size=7.8,min_size=6.0,writer=writers[0])
     centered_text(p,duration,402.8,448.6,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
     centered_text(p,display_date,504.0,568.0,341.8,font='helv',size=8.0,min_size=6.0,writer=writers[0])
-    # List each responsible person separately, numbered, within the existing responsible/instructor field.
-    # Keep the institutional form unchanged and prevent names from being merged into one text line.
-    supervisor_left, supervisor_right = 51.7, 270.0
-    supervisor_top, supervisor_bottom = 357.0, 397.0
+    # The institutional template already contains preprinted supervisor names.
+    # Clear only the inside of that cell before rendering the selected shift's names,
+    # preventing the printed template text from overlapping the generated text.
+    supervisor_left, supervisor_right = 53.0, 269.0
+    supervisor_top, supervisor_bottom = 358.5, 395.5
+    p.draw_rect(
+        fitz.Rect(supervisor_left, supervisor_top, supervisor_right, supervisor_bottom),
+        color=None, fill=(1, 1, 1), overlay=True
+    )
     supervisor_count = max(1, len(supervisor_names))
     supervisor_row_height = (supervisor_bottom - supervisor_top) / supervisor_count
     for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
         row_top = supervisor_top + (supervisor_index - 1) * supervisor_row_height
         row_bottom = row_top + supervisor_row_height
-        row_baseline = (row_top + row_bottom) / 2 + 2.6
-        # Keep the sequence number inside the same responsible field, immediately left of the name.
-        # Render number and name as one text string so there is no separate number cell.
+        row_baseline = (row_top + row_bottom) / 2 + 2.0
         centered_text(p, f'{supervisor_index:02d}. {supervisor_name}',
                       supervisor_left, supervisor_right, row_baseline,
-                      font='helv', size=7.2, min_size=6.0, writer=writers[0])
+                      font='helv', size=7.0, min_size=6.0, writer=writers[0])
 
     # Populate the exact number of selected-shift rows plus five extraordinary blank slots.
     columns=layout['columns']
