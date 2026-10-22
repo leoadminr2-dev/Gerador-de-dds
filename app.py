@@ -78,6 +78,21 @@ def _tenant_data_dir() -> Path:
     base.mkdir(parents=True, exist_ok=True)
     return base
 
+def _template_settings_path() -> Path:
+    return _tenant_data_dir() / 'template_settings.json'
+
+def _active_template_path() -> Path:
+    try:
+        settings = json.loads(_template_settings_path().read_text(encoding='utf-8'))
+        custom_name = settings.get('custom_filename') if settings.get('active') == 'custom' else None
+        if custom_name and re.fullmatch(r'template_custom_[0-9a-f]{12}\.pdf', str(custom_name)):
+            candidate = _tenant_data_dir() / 'templates' / custom_name
+            if candidate.is_file():
+                return candidate
+    except (OSError, ValueError, TypeError):
+        pass
+    return TEMPLATE_PATH
+
 def _state_path() -> Path:
     return _tenant_data_dir() / 'state.json'
 
@@ -1234,8 +1249,8 @@ def validate_content_fits_pdf(content: str) -> None:
     if len(text_value)>2600:
         raise ValueError('O conteúdo ultrapassa 2.600 caracteres. Revise o texto antes de salvar.')
     width,height=595.0,842.0
-    if TEMPLATE_PATH.exists():
-        with fitz.open(TEMPLATE_PATH) as template:
+    if _active_template_path().exists():
+        with fitz.open(_active_template_path()) as template:
             if not len(template):
                 raise ValueError('O modelo institucional não contém uma página válida.')
             width,height=float(template[0].rect.width),float(template[0].rect.height)
@@ -1346,7 +1361,7 @@ def prepare_attendance_pages(doc, layout: dict, required_rows: int) -> list[dict
 
 
 def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
-    if not TEMPLATE_PATH.exists() or not LAYOUT_PATH.exists():
+    if not _active_template_path().exists() or not LAYOUT_PATH.exists():
         raise RuntimeError('O modelo institucional não foi encontrado. Reinstale o pacote da Plataforma DDS.')
     topic=str(payload.get('topic','')).strip()
     shift=normalize_shift(payload.get('shift',''))
@@ -1390,7 +1405,7 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     layout=json.loads(LAYOUT_PATH.read_text(encoding='utf-8'))
     template_capacity=sum(len(p['rows']) for p in layout['pages'])
     required_rows=len(chosen)+BLANK_ATTENDANCE_ROWS
-    doc=fitz.open(TEMPLATE_PATH)
+    doc=fitz.open(_active_template_path())
     roster_pages=prepare_attendance_pages(doc, layout, required_rows)
     # Queue text per page: insert_text wraps existing streams on every call.
     # Batching avoids repeated content-stream processing when many attendance rows are printed.
@@ -1502,6 +1517,58 @@ def index():
 @app.get('/api/health')
 def health():
     return jsonify({'status':'ok','app':'Gerador de DDS','version':'1.3.0-web-ready' if HOSTED_MODE else '1.3.0-local','central_auth_required':CENTRAL_AUTH_ENABLED,'persistent_storage_configured':persistent_storage_available()})
+
+@app.get('/api/template')
+def get_template_settings():
+    settings = {}
+    try:
+        settings = json.loads(_template_settings_path().read_text(encoding='utf-8'))
+    except (OSError, ValueError, TypeError):
+        pass
+    custom_path = _tenant_data_dir() / 'templates' / str(settings.get('custom_filename', ''))
+    active = settings.get('active') if settings.get('active') == 'custom' and custom_path.is_file() else 'default'
+    return jsonify({'ok': True, 'active': active, 'name': settings.get('display_name', '') if active == 'custom' else 'Modelo institucional disponível', 'upload_limit_mb': 15})
+
+@app.post('/api/template')
+def upload_template():
+    uploaded = request.files.get('file')
+    if not uploaded or not uploaded.filename:
+        return jsonify({'error': 'Selecione um arquivo PDF institucional.'}), 400
+    if Path(uploaded.filename).suffix.lower() != '.pdf':
+        return jsonify({'error': 'Formato não suportado. Envie um modelo institucional em PDF.'}), 400
+    template_dir = _tenant_data_dir() / 'templates'
+    template_dir.mkdir(parents=True, exist_ok=True)
+    candidate = template_dir / ('template_custom_' + uuid.uuid4().hex[:12] + '.pdf')
+    try:
+        uploaded.save(candidate)
+        if candidate.stat().st_size <= 0 or candidate.stat().st_size > MAX_UPLOAD_BYTES:
+            raise ValueError('O arquivo está vazio ou ultrapassa o limite de 15 MB.')
+        with fitz.open(candidate) as document:
+            if not len(document) or len(document) > 100:
+                raise ValueError('O PDF precisa conter de 1 a 100 páginas.')
+        settings = {'active': 'custom', 'custom_filename': candidate.name,
+                    'display_name': secure_filename(uploaded.filename)[:120] or 'Modelo institucional personalizado',
+                    'updated_at': datetime.now().isoformat(timespec='seconds')}
+        _template_settings_path().write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding='utf-8')
+    except (ValueError, RuntimeError, OSError) as exc:
+        try: candidate.unlink(missing_ok=True)
+        except OSError: pass
+        return jsonify({'error': 'Não foi possível validar o PDF: ' + str(exc)[:220]}), 400
+    return jsonify({'ok': True, 'active': 'custom', 'name': settings['display_name'],
+                    'message': 'Modelo PDF validado e ativado. Confira um DDS de teste antes de usar operacionalmente.'})
+
+@app.post('/api/template/reset')
+def reset_template():
+    try:
+        settings = json.loads(_template_settings_path().read_text(encoding='utf-8'))
+    except (OSError, ValueError, TypeError):
+        settings = {}
+    settings['active'] = 'default'
+    settings['updated_at'] = datetime.now().isoformat(timespec='seconds')
+    _template_settings_path().write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding='utf-8')
+    return jsonify({'ok': True, 'active': 'default', 'name': 'Modelo institucional disponível',
+                    'message': 'O modelo institucional original foi restaurado.'})
+
 
 @app.get('/api/state')
 def state_endpoint():
