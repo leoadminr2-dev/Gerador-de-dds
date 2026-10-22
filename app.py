@@ -49,6 +49,14 @@ SUPERVISORS = {
     'DIURNO': ['ORLANDO BARBOSA', 'EVELYN MONTOVANI'],
     'VESPERTINO': ['KAYO LESSA', 'BRUNA FRAGA'],
 }
+# PADRAO RESPONSAVEIS APROVADO (GIG e demais unidades):
+# numeracao na celula esquerda; nome centralizado com entreletras e sem fundo.
+# As duas alturas sao as aprovadas para Orlando (primeira linha) e Evelyn (segunda).
+RESPONSIBLE_NUMBER_CELL = (24.2, 47.2)
+RESPONSIBLE_NAME_LEFT_INSET = 30.0
+RESPONSIBLE_LETTER_SPACING = 0.35
+RESPONSIBLE_ROW_ADJUST_Y = (4.0, 1.0)
+
 SHIFT_ALIASES = {
     'NOTURNO':'NOTURNO','NOITE':'NOTURNO','MADRUGADA':'NOTURNO','TURNO NOTURNO':'NOTURNO',
     'DIURNO':'DIURNO','DIA':'DIURNO','MANHA':'DIURNO','MATUTINO':'DIURNO','MANHÃ':'DIURNO','TURNO DIURNO':'DIURNO',
@@ -1560,30 +1568,32 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
     # No background overlay: retain the original cell and all institutional rules.
     # Existing printed supervisor glyphs are removed via targeted PDF text
     # redactions above; only the selected names are drawn in this cell.
-    supervisor_count = max(1, len(supervisor_names))
-    supervisor_row_height = (supervisor_bottom - supervisor_top) / supervisor_count
+    # Padrao institucional aprovado aplicado a TODOS os turnos e unidades.
+    # Mantemos sempre dois espacos de linha, mesmo se houver apenas um supervisor.
+    # A primeira linha conserva exatamente a altura aprovada para Orlando;
+    # a segunda conserva a altura aprovada para Evelyn.
+    if len(supervisor_names) > len(RESPONSIBLE_ROW_ADJUST_Y):
+        raise ValueError('O modelo institucional aceita ate dois responsaveis por DDS.')
+    supervisor_row_height = (supervisor_bottom - supervisor_top) / 2.0
     for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
         row_top = supervisor_top + (supervisor_index - 1) * supervisor_row_height
         row_bottom = row_top + supervisor_row_height
-        # Manter Orlando na posição aprovada e descer apenas Evelyn 1 ponto.
-        row_baseline = (row_top + row_bottom) / 2 + 4.0
-        if supervisor_name.strip().upper() == 'ORLANDO BARBOSA':
-            row_baseline += 4.0
-        elif supervisor_name.strip().upper() == 'EVELYN MONTOVANI':
-            row_baseline += 1.0
-        # Numero exclusivamente na celula estreita à esquerda do nome.
-        # Preserva a linha divisoria original, sem pintar fundo nem redesenhar bordas.
-        number_cell_left, number_cell_right = 24.2, 47.2
+        row_baseline = (
+            (row_top + row_bottom) / 2 + 4.0
+            + RESPONSIBLE_ROW_ADJUST_Y[supervisor_index - 1]
+        )
+        # Numero (01/02) centralizado no quadradinho original à esquerda.
+        number_cell_left, number_cell_right = RESPONSIBLE_NUMBER_CELL
         number_text = f'{supervisor_index:02d}'
         number_width = fitz.get_text_length(number_text, fontname='helv', fontsize=7.0)
         number_x = number_cell_left + (number_cell_right - number_cell_left - number_width) / 2.0
         writers[0].append((number_x, row_baseline), number_text,
                           font=fitz.Font(fontname='helv'), fontsize=7.0)
-        # Nome independente, centralizado no restante da celula, com entreletras.
-        # A altura aprovada de Orlando e Evelyn permanece inalterada.
+        # Apenas o nome na celula larga, com entreletras padronizado e sem fundo.
         tracked_centered_text(writers[0], supervisor_name,
-                              supervisor_left + 30.0, supervisor_right,
-                              row_baseline, size=7.0, letter_spacing=0.35)
+                              supervisor_left + RESPONSIBLE_NAME_LEFT_INSET,
+                              supervisor_right, row_baseline,
+                              size=7.0, letter_spacing=RESPONSIBLE_LETTER_SPACING)
 
     # Populate the exact number of selected-shift rows plus five extraordinary blank slots.
     columns=layout['columns']

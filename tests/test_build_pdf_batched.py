@@ -87,6 +87,64 @@ class BatchedPdfBuildTests(unittest.TestCase):
                 dds._output_dir = original_output_dir
 
 
+    def test_approved_responsible_layout_applies_to_every_shift_and_site(self):
+        # O padrao nao pode depender do nome: todos usam os mesmos quadradinhos
+        # 01/02, entreletras, bordas e alturas aprovadas para as duas linhas.
+        cases = [
+            ("DIURNO", "GIG", ["ORLANDO BARBOSA", "EVELYN MONTOVANI"]),
+            ("VESPERTINO", "GIG", ["KAYO LESSA", "BRUNA FRAGA"]),
+            ("NOTURNO", "GIG", ["MARIA DO SOCORRO"]),
+            ("DIURNO", "TECA", ["PEDRO PAULO"]),
+            ("DIURNO", "UNITED", ["WILKER MARIA"]),
+            ("DIURNO", "GATE GOURMET", ["MARCIA FASUTINO"]),
+        ]
+        original_output = dds.OUTPUT_DIR
+        original_output_dir = dds._output_dir
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                dds.OUTPUT_DIR = Path(directory)
+                dds._output_dir = lambda: Path(directory)
+                for shift, site, expected_names in cases:
+                    with self.subTest(shift=shift, site=site):
+                        payload = {
+                            "topic": "Teste do padrao institucional de responsaveis",
+                            "shift": shift,
+                            "work_site": site,
+                            "date": "2026-10-22",
+                            "content": "OBJETIVO\\nValidar o quadro de responsaveis.",
+                            "manual_blank": True,
+                        }
+                        filename, _ = dds.build_pdf(payload, [])
+                        with fitz.open(Path(directory) / filename) as document:
+                            words = document[0].get_text("words")
+                            numbers = [
+                                w for w in words
+                                if 24.2 <= w[0] and w[2] <= 47.2
+                                and 364.0 <= w[1] < 396.0
+                                and w[4] in ("01", "02")
+                            ]
+                            self.assertEqual([w[4] for w in numbers],
+                                             [f"{n:02d}" for n in range(1, len(expected_names) + 1)])
+                            for idx, name in enumerate(expected_names):
+                                # fitz reagrupa letras espaçadas em palavras selecionáveis.
+                                first = name.split()[0]
+                                matches = [
+                                    w for w in words
+                                    if w[4] == first and 53.0 <= w[0] < 269.0
+                                    and 364.0 <= w[1] < 396.0
+                                ]
+                                self.assertEqual(len(matches), 1, name)
+                                self.assertLess(abs(matches[0][1] - numbers[idx][1]), 1.5)
+                                self.assertGreater(matches[0][0], 53.0)
+                                untracked_width = fitz.get_text_length(first, fontname="helv", fontsize=7.0)
+                                self.assertGreater(matches[0][2] - matches[0][0],
+                                                   untracked_width + 0.7)
+                            self.assertEqual(len(numbers), len(expected_names))
+            finally:
+                dds.OUTPUT_DIR = original_output
+                dds._output_dir = original_output_dir
+
+
     def test_responsible_names_are_unique_and_header_area_is_clean(self):
         payload = {
             "topic": "Teste visual do cabeçalho",

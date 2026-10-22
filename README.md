@@ -46,3 +46,7 @@ A ação de pesquisa tenta consultar novamente MTE/Fundacentro e, quando pertine
 
 ## Painel Administrativo Central
 Consulte `ROADMAP_PAINEL_ADMIN_CENTRAL.md` para o plano de gestão conjunta do Gerador de DDS, Missão Em Dia, Super Gerador e outros projetos. A integração real do painel ainda será construída por módulos, sem simular métricas ou conexões que não estejam ativas.
+
+## Padrao oficial do quadro de responsaveis
+
+A numeracao dentro dos quadradinhos à esquerda, o espaçamento dos nomes, os alinhamentos e a ausência de fundo seguem o [padrão aprovado do Gerador de DDS](docs/PADRAO_RESPONSAVEIS_DDS.md), compartilhado por todos os turnos e unidades e protegido por testes automáticos.
