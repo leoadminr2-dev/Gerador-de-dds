@@ -1524,14 +1524,14 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
         # The fixed inset mask below remains as a safe fallback for image-only templates.
         pass
 
-    # Mask only the interior of the original responsible-person cell. Keep the
-    # institutional template's vector borders and attendance grid untouched.
-    # A 1 pt inset protects the top/bottom and side borders from white overlays.
+    # Clear preprinted names and stray pixels in the band above the names.
+    # The institutional horizontal border is restored after the mask.
     p.draw_rect(
-        fitz.Rect(supervisor_left + 1.0, supervisor_top + 1.0,
-                  supervisor_right - 1.0, supervisor_bottom - 1.0),
+        fitz.Rect(supervisor_left, 350.0, supervisor_right, supervisor_bottom),
         color=None, fill=(1, 1, 1), overlay=True
     )
+    p.draw_line((supervisor_left, supervisor_top), (supervisor_right, supervisor_top),
+                color=(0, 0, 0), width=0.45, overlay=True)
     supervisor_count = max(1, len(supervisor_names))
     supervisor_row_height = (supervisor_bottom - supervisor_top) / supervisor_count
     for supervisor_index, supervisor_name in enumerate(supervisor_names, start=1):
