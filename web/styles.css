@@ -363,3 +363,6 @@
 
 /* Opção única para reunir colaboradores de todos os turnos */
 .shift-picker-option[data-shift-option="TODOS"]{font-weight:750;color:#145da0}
+
+/* Configuração de modelo institucional */
+.template-choice-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:14px}.template-choice-row>div:first-child{display:grid;gap:5px}.template-choice-row small{color:var(--muted,#64748b);font-size:12px}.template-choice-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.template-upload-label{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.template-choice-actions button:disabled{opacity:.5;cursor:not-allowed}@media(max-width:650px){.template-choice-row,.template-choice-actions{align-items:stretch;flex-direction:column}.template-choice-actions>*{width:100%;text-align:center}}
