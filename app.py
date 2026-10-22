@@ -1328,6 +1328,29 @@ def _count_pdf_pages(path: Path) -> int:
         return len(check_doc)
 
 
+def tracked_centered_text(writer: fitz.TextWriter, text: str, x0: float, x1: float,
+                          baseline: float, size: float = 7.0,
+                          letter_spacing: float = 0.35) -> None:
+    """Centraliza o nome com espaçamento discreto entre letras, sem desenhar fundo.
+
+    Renderiza cada caractere na mesma linha, preservando a leitura do nome
+    como texto selecionável no PDF.
+    """
+    text = str(text or '')
+    if not text:
+        return
+    font = fitz.Font(fontname='helv')
+    natural_width = fitz.get_text_length(text, fontname='helv', fontsize=size)
+    total_width = natural_width + max(0, len(text) - 1) * letter_spacing
+    if total_width > x1 - x0 - 4.0:
+        raise ValueError('Nome do responsável excede o espaço da célula institucional.')
+    x = x0 + (x1 - x0 - total_width) / 2.0
+    for char in text:
+        if not char.isspace():
+            writer.append((x, baseline), char, font=font, fontsize=size)
+        x += fitz.get_text_length(char, fontname='helv', fontsize=size) + letter_spacing
+
+
 def centered_text(page, text: str, x0: float, x1: float, baseline: float, font='helv', size=8.0, min_size=6.0, color=(0,0,0), writer: fitz.TextWriter | None = None) -> float:
     text=str(text or '')
     cur=size
@@ -1538,9 +1561,15 @@ def build_pdf(payload: dict, employees: list[dict]) -> tuple[str, dict]:
             row_baseline += 4.0
         elif supervisor_name.strip().upper() == 'EVELYN MONTOVANI':
             row_baseline += 1.0
-        centered_text(p, f'{supervisor_index:02d}. {supervisor_name}',
-                      supervisor_left, supervisor_right, row_baseline,
-                      font='helv', size=7.0, min_size=6.0, writer=writers[0])
+        # Numeracao alinhada no canto esquerdo da celula original.
+        writers[0].append((supervisor_left + 7.0, row_baseline),
+                          f'{supervisor_index:02d}.',
+                          font=fitz.Font(fontname='helv'), fontsize=7.0)
+        # Nome independente, centralizado no restante da celula, com entreletras.
+        # A altura aprovada de Orlando e Evelyn permanece inalterada.
+        tracked_centered_text(writers[0], supervisor_name,
+                              supervisor_left + 30.0, supervisor_right,
+                              row_baseline, size=7.0, letter_spacing=0.35)
 
     # Populate the exact number of selected-shift rows plus five extraordinary blank slots.
     columns=layout['columns']
