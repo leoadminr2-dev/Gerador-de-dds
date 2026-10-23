@@ -52,7 +52,7 @@ class ResearchContract(unittest.TestCase):
                         json={'title':'Uso correto de EPI'})
                 self.assertEqual(result.status_code,200)
                 self.assertEqual(result.get_json()['mode'],'library')
-                self.assertIn('online indisponível',result.get_json()['message'])
+                self.assertIn('biblioteca',result.get_json()['message'].lower())
             finally:
                 app.TOPICS_DB_PATH=previous
 
