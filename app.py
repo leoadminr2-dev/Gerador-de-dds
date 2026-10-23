@@ -800,118 +800,108 @@ def _search_searxng(query: str, timeout: float=2.5) -> list[dict]:
 
 
 def _web_search(topic: str) -> list[dict]:
-    """Bounded search with DDS name expansion and several keyless search engines.
-
-    Search engines often rate-limit shared hosting IPs. Keep the total work bounded,
-    prefer snippets when available, and only open a few source pages if necessary.
-    """
+    """Find and read actual public source documents; never treat search snippets as evidence."""
     clean_topic=' '.join(str(topic or '').split()).strip()
     normalized=normalize(clean_topic)
-    queries=[]
-    if re.search(r'\bDDS\b', normalized):
-        detail=re.sub(r'\bDDS\b','',clean_topic,flags=re.IGNORECASE).strip(' :-–—')
-        if detail:
-            queries.append(f'"Diálogo Diário de Segurança" "{detail}" prevenção riscos')
-            queries.append(f'"{detail}" segurança do trabalho Brasil')
-        else:
-            queries.append('"Diálogo Diário de Segurança" segurança do trabalho Brasil')
-            queries.append('"Diálogo Diário de Segurança" site:gov.br OR site:fundacentro.gov.br')
-    elif 'DIALOGO DIARIO DE SEGURANCA' in normalized:
-        queries.append(f'"{clean_topic}" segurança do trabalho Brasil')
-        queries.append(f'{clean_topic} prevenção site:gov.br OR site:fundacentro.gov.br')
-    else:
-        queries.append(f'{clean_topic} segurança do trabalho prevenção Brasil')
-        queries.append(f'{clean_topic} prevenção riscos ocupacionais site:gov.br OR site:fundacentro.gov.br')
-
+    detail=re.sub(r'\\bDDS\\b', '', clean_topic, flags=re.IGNORECASE).strip(' :-–—')
+    subject=detail or clean_topic
+    queries=[
+        f'{subject} riscos prevenção site:gov.br/trabalho-e-emprego',
+        f'{subject} segurança saúde site:gov.br/fundacentro',
+        f'{subject} prevenção segurança do trabalho Brasil',
+    ]
+    if any(term in normalized for term in ('QUIMIC', 'SANITIZ', 'SANEANTE', 'DESINFEC', 'LIMPEZA')):
+        queries.insert(1, f'{subject} saneantes segurança site:gov.br/anvisa')
     deadline=time.monotonic()+24.0
-    errors=[]
-    # Try engines less affected by the recent 429s first. Every request has a short timeout.
-    engines=('searxng','brave','ecosia','yahoo','duckduckgo','google','bing')
-    attempts=0
-    for engine in engines:
-        if time.monotonic() >= deadline or attempts >= 6:
-            break
-        query=queries[attempts % len(queries)]
-        attempts+=1
+    engines=('searxng','brave','ecosia','duckduckgo','google','bing')
+    seen=set()
+    verified=[]
+    for index,engine in enumerate(engines):
+        remaining=deadline-time.monotonic()
+        if remaining<2.0 or len(verified)>=3: break
         try:
-            if engine=='searxng':
-                results=_search_searxng(query,timeout=min(2.5,max(0.5,deadline-time.monotonic())))
-            else:
-                results=_search_engine(query,engine,timeout=min(3.5,max(0.5,deadline-time.monotonic())))
+            query=queries[index % len(queries)]
+            found=(_search_searxng(query,timeout=min(2.5,remaining))
+                   if engine=='searxng' else
+                   _search_engine(query,engine,timeout=min(3.0,remaining)))
         except Exception as exc:
-            errors.append(f'{engine}: {type(exc).__name__}: {str(exc)[:120]}')
+            app.logger.info('Buscador DDS %s indisponível: %s',engine,type(exc).__name__)
             continue
-        if not results:
-            errors.append(f'{engine}: sem resultados')
-            continue
+        found.sort(key=lambda item: (not _source_is_official(item.get('url','')), item.get('url','')))
+        for item in found[:5]:
+            url=item.get('url','')
+            if url in seen or not _approved_source_url(url): continue
+            seen.add(url)
+            remaining=deadline-time.monotonic()
+            if remaining<1.0: break
+            try:
+                body=_fetch_text(url,timeout=min(3.0,remaining))
+                excerpt=_extract_relevant_sentences(body,subject,limit=4)
+            except Exception:
+                continue
+            if not excerpt: continue
+            # Only a successfully read original document can back a generated DDS.
+            verified.append({
+                'title':str(item.get('title') or url)[:200], 'url':url,
+                'excerpt':excerpt[:1250],
+                'authority':'Fonte oficial' if _source_is_official(url) else 'Fonte complementar — conferir antes de usar'
+            })
+            if len(verified)>=3: break
+    if not verified:
+        raise RuntimeError('Nenhuma fonte primária legível e pertinente encontrada nesta tentativa.')
+    return verified
 
-        results.sort(key=lambda item: 0 if _source_is_official(item.get('url','')) else 1)
-        enriched=[]
-        page_reads=0
-        for item in results[:4]:
-            if time.monotonic() >= deadline:
-                break
-            item['authority']='Fonte oficial' if _source_is_official(item.get('url','')) else 'Fonte complementar — conferir antes de usar'
-            snippet=re.sub(r'\s+',' ',str(item.get('snippet','') or '')).strip()
-            excerpt=snippet
-            # Search snippets can provide a useful lead without fetching every result page.
-            # If no snippet exists, read at most two pages from this engine.
-            if not excerpt and page_reads < 2 and time.monotonic() < deadline:
-                page_reads+=1
-                try:
-                    remaining=deadline-time.monotonic()
-                    body=_fetch_text(item['url'],timeout=min(2.5,max(0.5,remaining)))
-                    excerpt=_extract_relevant_sentences(body,clean_topic) if body else ''
-                    if not excerpt and body:
-                        excerpt=re.sub(r'\s+',' ',body).strip()[:900]
-                except Exception as exc:
-                    errors.append(f"leitura de fonte: {type(exc).__name__}")
-                    excerpt=''
-            item['excerpt']=excerpt
-            if excerpt:
-                enriched.append(item)
-            if len(enriched)>=3:
-                break
-        if enriched:
-            return enriched
-        errors.append(f'{engine}: links sem trecho de conteúdo extraível')
-    raise RuntimeError('Não foi possível obter conteúdo útil online dentro do limite de tempo ('+'; '.join(errors[-6:])+')')
+
 def _extract_relevant_sentences(text: str, topic: str, limit: int=5) -> str:
     if not text: return ''
-    terms=[x.lower() for x in re.findall(r'[A-Za-zÀ-ÿ0-9]{4,}',topic) if x.lower() not in {'para','sobre','como','com','das','dos','uma','um','tema','trabalho'}]
-    sentences=re.split(r'(?<=[.!?])\s+',text)
+    stop={'para','sobre','como','com','das','dos','uma','tema','trabalho','dds','diario','dialogo','seguranca'}
+    terms=[x.lower() for x in re.findall(r'[A-Za-zÀ-ÿ0-9]{4,}',topic) if x.lower() not in stop]
+    if not terms: return ''
+    sentences=re.split(r'(?<=[.!?])\\s+',text)
     ranked=[]
     for sent in sentences:
         sent=' '.join(sent.split()).strip(' .')
-        if len(sent)<65 or len(sent)>650: continue
-        low=sent.lower(); score=sum(2 for term in terms if term in low)
-        score+=sum(1 for word in ('preven','risco','seguran','prote','trabalhador','orienta','exposi','saúde','acidente','procedimento') if word in low)
-        if score: ranked.append((score,sent))
+        if not 65<=len(sent)<=450: continue
+        low=sent.lower()
+        overlap=sum(1 for term in terms if term in low)
+        if not overlap: continue
+        safety=sum(1 for word in ('preven','risco','seguran','prote','trabalhador','orienta','exposi','saúde','acidente','procedimento') if word in low)
+        ranked.append((overlap*4+safety,sent))
     ranked.sort(key=lambda x:(-x[0],len(x[1])))
     chosen=[]; seen=set()
     for _,sent in ranked:
-        key=sent.lower()
-        if key in seen: continue
-        seen.add(key); chosen.append(sent)
+        if sent.lower() in seen: continue
+        seen.add(sent.lower());chosen.append(sent)
         if len(chosen)>=limit: break
-    return ' '.join(chosen)[:2200]
+    return ' '.join(chosen)[:1800]
+
 
 def _draft_from_sources(topic: str, sources: list[dict]) -> str:
+    """Produce a short attributable working draft, not unsupported invented instructions."""
     evidence=[]
-    for src in sources:
-        excerpt=(src.get('excerpt') or src.get('snippet') or '').strip()
-        if excerpt: evidence.append(excerpt)
+    for item in sources:
+        excerpt=str(item.get('excerpt','')).strip()
+        if excerpt and _approved_source_url(item.get('url','')):
+            evidence.append(excerpt)
     if not evidence: return ''
-    # This is a source-grounded draft scaffold, not an assertion of automatic certification.
-    guidance=' '.join(evidence)
-    guidance=re.sub(r'\s+',' ',guidance).strip()
-    guidance=guidance[:1750]
-    return (f'POR QUE É IMPORTANTE?\nO tema “{topic}” exige atenção aos riscos específicos da atividade. As orientações abaixo foram preparadas a partir de referências públicas consultadas para este assunto; confirme sua aplicação ao procedimento local antes de orientar a equipe.\n\n'
-            f'OBJETIVO\nReforçar a prevenção dos riscos relacionados a {topic.lower()} e orientar a equipe a seguir fontes oficiais e os procedimentos autorizados.\n\n'
-            f'ORIENTAÇÕES BASEADAS NAS FONTES\n{guidance}\n\n'
-            f'CONDUTA NO LOCAL DE TRABALHO\nAplique somente as medidas compatíveis com o procedimento da empresa, o treinamento recebido e as condições reais do local. Em caso de dúvida, exposição, incidente ou condição insegura, interrompa a atividade com segurança e comunique a liderança responsável. Não improvise instruções técnicas nem substitua rótulos, FDS ou procedimentos específicos.\n\n'
-            f'MENSAGEM FINAL\nUse informações verificadas, siga o procedimento aplicável e comunique riscos antes que causem um acidente.')[:2600]
-
+    # Bound the number of characters before preflighting the actual institutional PDF.
+    sections=[
+        f'TEMA: {topic}',
+        'OBJETIVO\\nReconhecer os perigos ligados ao tema e discutir medidas preventivas aplicáveis à nossa operação.',
+        'ORIENTAÇÕES ENCONTRADAS NAS FONTES'
+    ]
+    budget=1000
+    for index,excerpt in enumerate(evidence[:3],start=1):
+        compact=' '.join(excerpt.split())
+        if len(compact)>budget:compact=compact[:budget].rsplit(' ',1)[0].rstrip(' ,;')+'.'
+        if not compact:continue
+        sections.append(f'{index}. {compact}')
+        budget-=len(compact)
+        if budget<=90:break
+    sections.append('APLICAÇÃO NO POSTO\\nAntes da atividade, avalie os riscos reais, siga o POP e os controles aprovados, confira EPI e FDS quando aplicáveis e comunique condições inseguras à liderança. Adapte estas orientações ao local; não improvise procedimentos.')
+    sections.append('MENSAGEM FINAL\\nSegurança exige reconhecimento do risco, prevenção e comunicação.')
+    return '\\n\\n'.join(sections)
+    
 def init_topics_db() -> None:
     with closing(sqlite3.connect(_topics_db_path())) as con:
         con.execute('''CREATE TABLE IF NOT EXISTS topics (
