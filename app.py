@@ -366,6 +366,7 @@ def default_state() -> dict:
 
 
 TOPIC_SEEDS = [
+    ('Respeito à hierarquia','Ética e relações profissionais','Respeite as responsabilidades de supervisores, líderes e colegas. Ouça instruções com atenção, esclareça dúvidas com educação, cumpra orientações lícitas e seguras e comunique conflitos pelos canais apropriados. A hierarquia não autoriza humilhação, assédio ou ordens que exponham pessoas a riscos. Ao perceber perigo, interrompa a atividade com segurança e procure a liderança.'),
     ('Prevenção de quedas e escorregões','Prevenção de acidentes','Sinalize pisos molhados, mantenha rotas livres, use calçado adequado e comunique condições inseguras.'),
     ('Uso correto de EPI','Equipamentos de proteção','Confira o estado do EPI, use o equipamento indicado para a tarefa, não improvise e comunique danos ou falta de material.'),
     ('Manuseio seguro de produtos químicos','Produtos químicos','Leia rótulos e fichas de segurança, nunca misture produtos, mantenha embalagens identificadas e utilize a proteção indicada.'),
