@@ -366,6 +366,7 @@ def default_state() -> dict:
 
 
 TOPIC_SEEDS = [
+    ('Respeito à hierarquia','Ética e relações profissionais','Respeite as responsabilidades de supervisores, líderes e colegas. Ouça instruções com atenção, esclareça dúvidas com educação, cumpra orientações lícitas e seguras e comunique conflitos pelos canais apropriados. A hierarquia não autoriza humilhação, assédio ou ordens que exponham pessoas a riscos. Ao perceber perigo, interrompa a atividade com segurança e procure a liderança.'),
     ('Prevenção de quedas e escorregões','Prevenção de acidentes','Sinalize pisos molhados, mantenha rotas livres, use calçado adequado e comunique condições inseguras.'),
     ('Uso correto de EPI','Equipamentos de proteção','Confira o estado do EPI, use o equipamento indicado para a tarefa, não improvise e comunique danos ou falta de material.'),
     ('Manuseio seguro de produtos químicos','Produtos químicos','Leia rótulos e fichas de segurança, nunca misture produtos, mantenha embalagens identificadas e utilize a proteção indicada.'),
@@ -799,6 +800,31 @@ def _search_searxng(query: str, timeout: float=2.5) -> list[dict]:
     return []
 
 
+def _brave_api_search(query: str, timeout: float=5.0) -> list[dict]:
+    """Optional server-side search provider. Never send credentials to browsers."""
+    token=os.environ.get('DDS_BRAVE_API_KEY','').strip()
+    if not token: return []
+    endpoint='https://api.search.brave.com/res/v1/web/search?q='+quote_plus(query)+'&count=6'
+    req=Request(endpoint,headers={'Accept':'application/json','X-Subscription-Token':token})
+    with urlopen(req,timeout=timeout) as response:
+        payload=json.loads(response.read(500000).decode('utf-8'))
+    results=[]
+    for item in (payload.get('web',{}).get('results',[]) if isinstance(payload,dict) else []):
+        target=str(item.get('url') or '')
+        if _approved_source_url(target):
+            results.append({'title':str(item.get('title') or target),
+                            'url':target,'snippet':str(item.get('description') or '')})
+    return results
+
+
+def _saved_topic_for_reuse(title: str) -> dict | None:
+    """Only reuse exactly matching locally saved material; no claimed fresh verification."""
+    for row in topic_rows():
+        if normalize(row.get('title')) == normalize(title):
+            return row
+    return None
+
+
 def _web_search(topic: str) -> list[dict]:
     """Find and read actual public source documents; never treat search snippets as evidence."""
     clean_topic=' '.join(str(topic or '').split()).strip()
@@ -813,7 +839,7 @@ def _web_search(topic: str) -> list[dict]:
     if any(term in normalized for term in ('QUIMIC', 'SANITIZ', 'SANEANTE', 'DESINFEC', 'LIMPEZA')):
         queries.insert(1, f'{subject} saneantes segurança site:gov.br/anvisa')
     deadline=time.monotonic()+24.0
-    engines=('searxng','brave','ecosia','duckduckgo','google','bing')
+    engines=('brave-api','searxng','brave','ecosia','duckduckgo','google','bing')
     seen=set()
     verified=[]
     for index,engine in enumerate(engines):
@@ -821,8 +847,8 @@ def _web_search(topic: str) -> list[dict]:
         if remaining<2.0 or len(verified)>=3: break
         try:
             query=queries[index % len(queries)]
-            found=(_search_searxng(query,timeout=min(2.5,remaining))
-                   if engine=='searxng' else
+            found=(_brave_api_search(query,timeout=min(3.0,remaining)) if engine=='brave-api' else
+                   _search_searxng(query,timeout=min(2.5,remaining)) if engine=='searxng' else
                    _search_engine(query,engine,timeout=min(3.0,remaining)))
         except Exception as exc:
             app.logger.info('Buscador DDS %s indisponível: %s',engine,type(exc).__name__)
@@ -2069,6 +2095,16 @@ def research_topic():
     if not title: return jsonify({'error':'Informe o tema que deseja pesquisar.'}),400
     if len(title)>140: return jsonify({'error':'O tema deve ter até 140 caracteres.'}),400
     init_topics_db()
+    # Reutilizar primeiro o tema exato quando for material da biblioteca inicial.
+    # Assim a consulta evita custo e esperas, sem afirmar que houve busca ao vivo.
+    saved=_saved_topic_for_reuse(title)
+    if saved and saved.get('source') == 'biblioteca inicial':
+        return jsonify({
+            'ok':True,'mode':'library','title':saved['title'],
+            'category':saved['category'],'objective':saved['objective'],
+            'content':saved['content'],'sources':[],
+            'message':'Tema encontrado na biblioteca inicial. Material de apoio, não uma pesquisa ao vivo; revise antes de apresentar.'
+        })
     # A pesquisa desta ação precisa de evidência obtida agora; a biblioteca local
     # não é usada como substituta silenciosa quando as fontes online falham.
     try:
@@ -2093,6 +2129,17 @@ def research_topic():
             return jsonify({'ok':True,'mode':'online','title':title,'category':category,'objective':objective,'content':content,'sources':sources,'message':'Rascunho de pesquisa preparado a partir de fontes online. Confira as fontes e revise o conteúdo antes de usar; fontes complementares não são oficiais.'})
     except Exception as exc:
         app.logger.warning('Pesquisa online de DDS indisponível: %s',exc)
+    # Biblioteca verificável: sem fingir que os registros são pesquisa ao vivo.
+    cached=_saved_topic_for_reuse(title)
+    if cached:
+        metadata=topic_source_metadata(cached.get('source',''))
+        return jsonify({
+            'ok':True,'mode':'library',
+            'title':cached['title'],'category':cached['category'],
+            'objective':cached['objective'],'content':cached['content'],
+            'sources':metadata.get('sources',[]),
+            'message':'Pesquisa online indisponível. Tema recuperado da biblioteca; valide a atualidade das referências antes do uso.'
+        })
     # A consulta solicitada precisa de fontes reais desta execução. Não usar um
     # rascunho genérico, links de busca ou cache como se fossem pesquisa online.
     return jsonify({
