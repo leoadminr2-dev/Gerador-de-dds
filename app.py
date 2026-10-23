@@ -2118,6 +2118,17 @@ def research_topic():
             return jsonify({'ok':True,'mode':'online','title':title,'category':category,'objective':objective,'content':content,'sources':sources,'message':'Rascunho de pesquisa preparado a partir de fontes online. Confira as fontes e revise o conteúdo antes de usar; fontes complementares não são oficiais.'})
     except Exception as exc:
         app.logger.warning('Pesquisa online de DDS indisponível: %s',exc)
+    # Biblioteca verificável: sem fingir que os registros são pesquisa ao vivo.
+    cached=_saved_topic_for_reuse(title)
+    if cached:
+        metadata=topic_source_metadata(cached.get('source',''))
+        return jsonify({
+            'ok':True,'mode':'library',
+            'title':cached['title'],'category':cached['category'],
+            'objective':cached['objective'],'content':cached['content'],
+            'sources':metadata.get('sources',[]),
+            'message':'Pesquisa online indisponível. Tema recuperado da biblioteca; valide a atualidade das referências antes do uso.'
+        })
     # A consulta solicitada precisa de fontes reais desta execução. Não usar um
     # rascunho genérico, links de busca ou cache como se fossem pesquisa online.
     return jsonify({
