@@ -803,7 +803,7 @@ def _web_search(topic: str) -> list[dict]:
     """Find and read actual public source documents; never treat search snippets as evidence."""
     clean_topic=' '.join(str(topic or '').split()).strip()
     normalized=normalize(clean_topic)
-    detail=re.sub(r'\\bDDS\\b', '', clean_topic, flags=re.IGNORECASE).strip(' :-–—')
+    detail=re.sub(r'\bDDS\b', '', clean_topic, flags=re.IGNORECASE).strip(' :-–—')
     subject=detail or clean_topic
     queries=[
         f'{subject} riscos prevenção site:gov.br/trabalho-e-emprego',
@@ -857,7 +857,7 @@ def _extract_relevant_sentences(text: str, topic: str, limit: int=5) -> str:
     stop={'para','sobre','como','com','das','dos','uma','tema','trabalho','dds','diario','dialogo','seguranca'}
     terms=[x.lower() for x in re.findall(r'[A-Za-zÀ-ÿ0-9]{4,}',topic) if x.lower() not in stop]
     if not terms: return ''
-    sentences=re.split(r'(?<=[.!?])\\s+',text)
+    sentences=re.split(r'(?<=[.!?])\s+',text)
     ranked=[]
     for sent in sentences:
         sent=' '.join(sent.split()).strip(' .')
@@ -887,7 +887,7 @@ def _draft_from_sources(topic: str, sources: list[dict]) -> str:
     # Bound the number of characters before preflighting the actual institutional PDF.
     sections=[
         f'TEMA: {topic}',
-        'OBJETIVO\\nReconhecer os perigos ligados ao tema e discutir medidas preventivas aplicáveis à nossa operação.',
+        'OBJETIVO\nReconhecer os perigos ligados ao tema e discutir medidas preventivas aplicáveis à nossa operação.',
         'ORIENTAÇÕES ENCONTRADAS NAS FONTES'
     ]
     budget=1000
@@ -898,9 +898,9 @@ def _draft_from_sources(topic: str, sources: list[dict]) -> str:
         sections.append(f'{index}. {compact}')
         budget-=len(compact)
         if budget<=90:break
-    sections.append('APLICAÇÃO NO POSTO\\nAntes da atividade, avalie os riscos reais, siga o POP e os controles aprovados, confira EPI e FDS quando aplicáveis e comunique condições inseguras à liderança. Adapte estas orientações ao local; não improvise procedimentos.')
-    sections.append('MENSAGEM FINAL\\nSegurança exige reconhecimento do risco, prevenção e comunicação.')
-    return '\\n\\n'.join(sections)
+    sections.append('APLICAÇÃO NO POSTO\nAntes da atividade, avalie os riscos reais, siga o POP e os controles aprovados, confira EPI e FDS quando aplicáveis e comunique condições inseguras à liderança. Adapte estas orientações ao local; não improvise procedimentos.')
+    sections.append('MENSAGEM FINAL\nSegurança exige reconhecimento do risco, prevenção e comunicação.')
+    return '\n\n'.join(sections)
     
 def init_topics_db() -> None:
     with closing(sqlite3.connect(_topics_db_path())) as con:
