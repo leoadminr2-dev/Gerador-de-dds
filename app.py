@@ -2095,6 +2095,16 @@ def research_topic():
     if not title: return jsonify({'error':'Informe o tema que deseja pesquisar.'}),400
     if len(title)>140: return jsonify({'error':'O tema deve ter até 140 caracteres.'}),400
     init_topics_db()
+    # Reutilizar primeiro o tema exato quando for material da biblioteca inicial.
+    # Assim a consulta evita custo e esperas, sem afirmar que houve busca ao vivo.
+    saved=_saved_topic_for_reuse(title)
+    if saved and saved.get('source') == 'biblioteca inicial':
+        return jsonify({
+            'ok':True,'mode':'library','title':saved['title'],
+            'category':saved['category'],'objective':saved['objective'],
+            'content':saved['content'],'sources':[],
+            'message':'Tema encontrado na biblioteca inicial. Material de apoio, não uma pesquisa ao vivo; revise antes de apresentar.'
+        })
     # A pesquisa desta ação precisa de evidência obtida agora; a biblioteca local
     # não é usada como substituta silenciosa quando as fontes online falham.
     try:
