@@ -799,6 +799,31 @@ def _search_searxng(query: str, timeout: float=2.5) -> list[dict]:
     return []
 
 
+def _brave_api_search(query: str, timeout: float=5.0) -> list[dict]:
+    """Optional server-side search provider. Never send credentials to browsers."""
+    token=os.environ.get('DDS_BRAVE_API_KEY','').strip()
+    if not token: return []
+    endpoint='https://api.search.brave.com/res/v1/web/search?q='+quote_plus(query)+'&count=6'
+    req=Request(endpoint,headers={'Accept':'application/json','X-Subscription-Token':token})
+    with urlopen(req,timeout=timeout) as response:
+        payload=json.loads(response.read(500000).decode('utf-8'))
+    results=[]
+    for item in (payload.get('web',{}).get('results',[]) if isinstance(payload,dict) else []):
+        target=str(item.get('url') or '')
+        if _approved_source_url(target):
+            results.append({'title':str(item.get('title') or target),
+                            'url':target,'snippet':str(item.get('description') or '')})
+    return results
+
+
+def _saved_topic_for_reuse(title: str) -> dict | None:
+    """Only reuse exactly matching locally saved material; no claimed fresh verification."""
+    for row in topic_rows():
+        if normalize(row.get('title')) == normalize(title):
+            return row
+    return None
+
+
 def _web_search(topic: str) -> list[dict]:
     """Find and read actual public source documents; never treat search snippets as evidence."""
     clean_topic=' '.join(str(topic or '').split()).strip()
@@ -813,7 +838,7 @@ def _web_search(topic: str) -> list[dict]:
     if any(term in normalized for term in ('QUIMIC', 'SANITIZ', 'SANEANTE', 'DESINFEC', 'LIMPEZA')):
         queries.insert(1, f'{subject} saneantes segurança site:gov.br/anvisa')
     deadline=time.monotonic()+24.0
-    engines=('searxng','brave','ecosia','duckduckgo','google','bing')
+    engines=('brave-api','searxng','brave','ecosia','duckduckgo','google','bing')
     seen=set()
     verified=[]
     for index,engine in enumerate(engines):
@@ -821,8 +846,8 @@ def _web_search(topic: str) -> list[dict]:
         if remaining<2.0 or len(verified)>=3: break
         try:
             query=queries[index % len(queries)]
-            found=(_search_searxng(query,timeout=min(2.5,remaining))
-                   if engine=='searxng' else
+            found=(_brave_api_search(query,timeout=min(3.0,remaining)) if engine=='brave-api' else
+                   _search_searxng(query,timeout=min(2.5,remaining)) if engine=='searxng' else
                    _search_engine(query,engine,timeout=min(3.0,remaining)))
         except Exception as exc:
             app.logger.info('Buscador DDS %s indisponível: %s',engine,type(exc).__name__)
