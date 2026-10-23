@@ -37,5 +37,30 @@ class ResearchContract(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 app._web_search('Tema inexistente')
 
+    def test_library_fallback_is_distinct_from_live_search(self):
+        import app
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        from pathlib import Path
+        with TemporaryDirectory() as directory:
+            previous=app.TOPICS_DB_PATH
+            app.TOPICS_DB_PATH=Path(directory)/'topics.db'
+            try:
+                app.init_topics_db()
+                with patch.object(app,'_web_search',side_effect=RuntimeError('rate limited')):
+                    result=app.app.test_client().post('/api/research-topic',
+                        json={'title':'Uso correto de EPI'})
+                self.assertEqual(result.status_code,200)
+                self.assertEqual(result.get_json()['mode'],'library')
+                self.assertIn('online indisponível',result.get_json()['message'])
+            finally:
+                app.TOPICS_DB_PATH=previous
+
+    def test_brave_is_optional_without_token(self):
+        import app
+        from unittest.mock import patch
+        with patch.dict(app.os.environ,{},clear=True):
+            self.assertEqual(app._brave_api_search('hierarquia'),[])
+
 if __name__=='__main__':
     unittest.main()
