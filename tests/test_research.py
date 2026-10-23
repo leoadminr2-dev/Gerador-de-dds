@@ -94,7 +94,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(len(metadata["sources"]), 1)
         self.assertEqual(metadata["sources"][0]["title"], "MTE")
 
-    def test_offline_draft_is_clear_and_airport_aware(self):
+    def test_failed_online_research_is_explicit_and_does_not_save_draft(self):
         with tempfile.TemporaryDirectory() as directory:
             previous_db = dds.TOPICS_DB_PATH
             dds.TOPICS_DB_PATH = Path(directory) / "topics.db"
@@ -104,13 +104,15 @@ class ResearchTests(unittest.TestCase):
                         "/api/research-topic",
                         json={"title": "Prevenção de quedas em áreas de circulação"}
                     )
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, 503)
                 body = response.get_json()
-                self.assertEqual(body["mode"], "offline-draft")
-                self.assertIn("NÃO uma pesquisa verificada", body["message"])
-                self.assertIn("CONTEXTO AEROPORTUÁRIO", body["content"])
-                self.assertIn("passageiros", body["content"].lower())
-                self.assertGreaterEqual(len(body["sources"]), 2)
+                self.assertEqual(body["mode"], "research-unavailable")
+                self.assertFalse(body["ok"])
+                self.assertNotIn("content", body)
+                self.assertFalse(any(
+                    row["title"] == "Prevenção de quedas em áreas de circulação"
+                    for row in dds.topic_rows()
+                ))
             finally:
                 dds.TOPICS_DB_PATH = previous_db
 
