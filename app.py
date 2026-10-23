@@ -2081,9 +2081,12 @@ def research_topic():
             now=datetime.now().isoformat(timespec='seconds')
             source_value='WEB-PESQUISADO:'+json.dumps(sources,ensure_ascii=False)
             with closing(sqlite3.connect(_topics_db_path())) as con:
-                existing=con.execute('SELECT id FROM topics WHERE title=? COLLATE NOCASE',(title,)).fetchone()
-                if existing:
+                existing=con.execute('SELECT id,source FROM topics WHERE title=? COLLATE NOCASE',(title,)).fetchone()
+                if existing and str(existing[1]).startswith('WEB-PESQUISADO:'):
                     con.execute('UPDATE topics SET category=?,objective=?,content=?,source=?,updated_at=? WHERE id=?',(category,objective,content,source_value,now,existing[0]))
+                elif existing:
+                    # Keep manually edited and original library records intact.
+                    pass
                 else:
                     con.execute('INSERT INTO topics(title,category,objective,content,source,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',(title,category,objective,content,source_value,now,now))
                 con.commit()
