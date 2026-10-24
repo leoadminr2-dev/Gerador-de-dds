@@ -90,9 +90,11 @@ class DurableVaultProxyTests(unittest.TestCase):
             })
         self.assertEqual(result.status_code,200,result.get_json())
         self.assertEqual(result.headers.get('X-DDS-Vault-State'),'ok')
-        self.assertEqual(len(outgoing),1)
+        self.assertEqual(len(outgoing),2)
         self.assertTrue(outgoing[0].full_url.endswith('?action=state'))
-        sent=json.loads(outgoing[0].data.decode('utf-8'))
+        self.assertEqual(outgoing[0].get_method(),'GET')
+        self.assertEqual(outgoing[1].get_method(),'PUT')
+        sent=json.loads(outgoing[1].data.decode('utf-8'))
         self.assertEqual(sent['state']['employees'][0]['name'],'ANA DA SILVA')
 
     def test_generation_saves_pdf_and_state_from_server(self):
@@ -113,8 +115,54 @@ class DurableVaultProxyTests(unittest.TestCase):
         self.assertEqual(result.headers.get('X-DDS-Vault-State'),'ok')
         self.assertEqual(result.headers.get('X-DDS-Vault-Pdf'),'ok')
         actions=[req.full_url.split('?action=')[-1].split('&')[0] for req in outgoing]
-        self.assertEqual(actions,['state','pdf'])
-        self.assertTrue(outgoing[1].data.startswith(b'%PDF-'))
+        self.assertEqual(actions,['state','state','pdf'])
+        self.assertTrue(outgoing[2].data.startswith(b'%PDF-'))
+
+    def test_prevents_overwriting_remote_roster_after_server_restart(self):
+        self.client.post('/api/owner-login',json={
+            'email':'owner@example.com','password':'correct-password-longer-than-twenty'})
+        local_backup=dds.backup_payload()
+        self.assertEqual(len(local_backup['state']['employees']),0)
+        remote={'format':'gerador-dds-backup','backup_version':1,
+                'state':{'employees':[{'name':'SIMULADO','id':str(i)}
+                                       for i in range(20)],
+                         'history':[{'id':str(i)} for i in range(20)],
+                         'settings':{}}}
+        requests=[]
+        def mocked_open(req,timeout):
+            requests.append(req)
+            return FakeVaultResponse({'ok':True,'backup':remote})
+        with patch.object(dds,'urlopen',side_effect=mocked_open):
+            result=self.client.put('/api/vault/state',
+                data=json.dumps(local_backup),content_type='application/json')
+        self.assertEqual(result.status_code,409,result.get_json())
+        self.assertEqual(result.get_json()['code'],'vault-snapshot-regression')
+        self.assertTrue(result.get_json()['remote_preserved'])
+        self.assertEqual(len(requests),1)
+        self.assertEqual(requests[0].get_method(),'GET')
+
+    def test_research_saves_new_topic_in_remote_vault_without_browser(self):
+        self.client.post('/api/owner-login',json={
+            'email':'owner@example.com','password':'correct-password-longer-than-twenty'})
+        sources=[{'title':'MTE','url':'https://www.gov.br/trabalho-e-emprego/pt-br/assuntos',
+                 'excerpt':'Tema da pesquisa revisado e confirmado em documento oficial.'}]
+        requests=[]
+        def mocked_open(req,timeout):
+            requests.append(req)
+            return FakeVaultResponse({'ok':True})
+        with patch.object(dds,'urlopen',side_effect=mocked_open), \\
+             patch.object(dds,'_web_search',return_value=sources), \\
+             patch.object(dds,'_draft_from_sources',return_value='TEMA\\nMedidas preventivas'), \\
+             patch.object(dds,'validate_content_fits_pdf'):
+            result=self.client.post('/api/research-topic',json={'title':'Tema remoto inédito'})
+        self.assertEqual(result.status_code,200,result.get_json())
+        self.assertEqual(result.get_json()['mode'],'online')
+        self.assertEqual(result.headers.get('X-DDS-Vault-State'),'ok')
+        self.assertEqual(len(requests),2)
+        self.assertEqual(requests[0].get_method(),'GET')
+        self.assertEqual(requests[1].get_method(),'PUT')
+        uploaded=json.loads(requests[1].data.decode('utf-8'))
+        self.assertEqual(uploaded['researched_topics'][0]['title'],'Tema remoto inédito')
 
     def test_pdf_upload_invalid_content_never_goes_to_vault(self):
         self.client.post('/api/owner-login',json={
