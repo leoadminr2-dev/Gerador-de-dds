@@ -2112,7 +2112,7 @@ def restore_backup_data():
     try:
         with closing(sqlite3.connect(_topics_db_path())) as con:
             con.execute('BEGIN')
-            con.execute("DELETE FROM topics WHERE source='cadastrado pelo usuário'")
+            # A restauração de temas é aditiva: não descartar edições locais recentes.
             for title, category, objective, content, created_at, updated_at in normalized_topics:
                 con.execute('''INSERT OR IGNORE INTO topics(title,category,objective,content,source,created_at,updated_at)
                                VALUES(?,?,?,?,?,?,?)''',
