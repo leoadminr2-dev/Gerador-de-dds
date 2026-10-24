@@ -93,5 +93,41 @@ class BackupResearchedTopicTests(unittest.TestCase):
         self.assertTrue(any(row['title'] == 'Tema da internet' for row in dds.topic_rows()))
 
 
+    def test_restoration_preserves_more_than_one_hundred_history_entries(self):
+        backup = dds.backup_payload()
+        backup['state']['history'] = [{'sequence': i} for i in range(125)]
+        status, response = self.restore(backup)
+        self.assertEqual(status, 200, response)
+        self.assertEqual(len(dds.read_state()['history']), 125)
+        self.assertEqual(response['history'], 125)
+
+    def test_read_only_diagnostics_detects_missing_local_data(self):
+        from flask import jsonify
+        remote = dds.backup_payload()
+        remote['state']['employees'] = [
+            {'id': '1', 'name': 'TESTE', 'shift': 'DIURNO'}]
+        with dds.app.test_request_context('/api/backup-diagnostics'):
+            with patch.object(dds, '_vault_proxy',
+                              return_value=jsonify({'backup': remote, 'ok': True})) as proxy:
+                response = dds.dds_backup_diagnostics()
+        self.assertEqual(response.status_code, 200)
+        result = response.get_json()
+        self.assertTrue(result['local_has_fewer_employees'])
+        self.assertEqual(result['employee_count_remote'], 1)
+        self.assertEqual(result['employee_count_local'], 0)
+        self.assertEqual(result['history_count_remote'], 0)
+        proxy.assert_called_once_with('state')
+        self.assertEqual(dds.read_state()['employees'], [])
+
+    def test_read_only_diagnostics_rejects_corrupted_backup(self):
+        from flask import jsonify
+        with dds.app.test_request_context('/api/backup-diagnostics'):
+            with patch.object(dds, '_vault_proxy',
+                              return_value=jsonify({'backup': {'format': 'other'}})):
+                result = dds.dds_backup_diagnostics()
+        self.assertEqual(result[1], 503)
+        self.assertFalse(result[0].get_json()['ok'])
+
+
 if __name__ == '__main__':
     unittest.main()
