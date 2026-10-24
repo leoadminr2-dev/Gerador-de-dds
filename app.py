@@ -1991,7 +1991,14 @@ def state_endpoint():
 
 def backup_payload() -> dict:
     state = read_state()
-    custom_topics = [row for row in topic_rows() if row.get('source') == 'cadastrado pelo usuário']
+    all_topics = topic_rows()
+    backup_fields = ('title','category','objective','content','source','created_at','updated_at')
+    # Armazena metadados de origem sem duplicar os campos adicionais da API.
+    custom_topics = [{key: row.get(key) for key in backup_fields}
+                     for row in all_topics if row.get('source') == 'cadastrado pelo usuário']
+    researched_topics = [{key: row.get(key) for key in backup_fields}
+                         for row in all_topics
+                         if str(row.get('source','')).startswith('WEB-PESQUISADO:')]
     return {
         'format': 'gerador-dds-backup',
         'backup_version': 1,
@@ -1999,7 +2006,8 @@ def backup_payload() -> dict:
         'exported_at': datetime.now().isoformat(timespec='seconds'),
         'state': state,
         'custom_topics': custom_topics,
-        'scope': 'Cadastros, configurações, histórico e temas criados pelo usuário. Os PDFs já gerados permanecem na pasta local outputs e não são incluídos neste arquivo.'
+        'researched_topics': researched_topics,
+        'scope': 'Cadastros, configurações, histórico, temas personalizados e temas pesquisados online com referências. Os PDFs já gerados permanecem no armazenamento próprio e não integram este JSON.'
     }
 
 
@@ -2017,12 +2025,15 @@ def restore_backup_data():
         return jsonify({'error': 'Arquivo de backup inválido ou de versão não compatível.'}), 400
     imported_state = body.get('state')
     custom_topics = body.get('custom_topics', [])
+    researched_topics = body.get('researched_topics', [])
     if not isinstance(imported_state, dict) or not isinstance(imported_state.get('employees', []), list):
         return jsonify({'error': 'O backup não contém uma relação válida de colaboradores.'}), 400
     if not isinstance(imported_state.get('history', []), list) or not isinstance(imported_state.get('settings', {}), dict):
         return jsonify({'error': 'O histórico ou as configurações do backup são inválidos.'}), 400
     if not isinstance(custom_topics, list) or len(custom_topics) > 5000:
         return jsonify({'error': 'A lista de temas do backup é inválida ou excede o limite permitido.'}), 400
+    if not isinstance(researched_topics, list) or len(researched_topics) > 5000:
+        return jsonify({'error': 'A lista de temas pesquisados é inválida ou excede o limite permitido.'}), 400
     raw_employees = imported_state.get('employees', [])
     raw_history = imported_state.get('history', [])
     if len(raw_employees) > 20000 or len(raw_history) > 10000:
@@ -2061,6 +2072,36 @@ def restore_backup_data():
         normalized_topics.append((title, category, objective or f'Reforçar práticas seguras relacionadas a {title.lower()}.', content,
                                   str(raw.get('created_at') or datetime.now().isoformat(timespec='seconds')),
                                   str(raw.get('updated_at') or datetime.now().isoformat(timespec='seconds'))))
+    normalized_researched = []
+    for raw in researched_topics:
+        if not isinstance(raw, dict):
+            return jsonify({'error': 'Há um tema pesquisado inválido no backup.'}), 400
+        title = str(raw.get('title', '')).strip()
+        category = str(raw.get('category', '')).strip() or 'Pesquisa na internet — revisar antes de usar'
+        objective = str(raw.get('objective', '')).strip()
+        content = str(raw.get('content', '')).strip()
+        provenance = str(raw.get('source', ''))
+        if not title or len(title)>140 or len(category)>80 or len(objective)>300 or not content or len(content)>2600:
+            return jsonify({'error': 'Um tema pesquisado está incompleto ou excede o limite permitido.'}), 400
+        if not provenance.startswith('WEB-PESQUISADO:') or len(provenance)>12000:
+            return jsonify({'error': 'Referências do tema pesquisado inválidas.'}), 400
+        try:
+            sources = json.loads(provenance.partition(':')[2])
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Referências do tema pesquisado ilegíveis.'}), 400
+        if (not isinstance(sources, list) or not 1<=len(sources)<=8
+                or not all(isinstance(item, dict) and
+                           _approved_source_url(str(item.get('url',''))) for item in sources)):
+            return jsonify({'error': 'Fontes do tema pesquisado são inválidas.'}), 400
+        title_key = normalize(title)
+        if title_key in seen_titles:
+            return jsonify({'error': 'O backup contém títulos de temas repetidos.'}), 400
+        seen_titles.add(title_key)
+        normalized_researched.append((title,category,
+            objective or f'Reforçar a prevenção dos riscos relacionados a {title.lower()}.',
+            content,provenance,
+            str(raw.get('created_at') or datetime.now().isoformat(timespec='seconds')),
+            str(raw.get('updated_at') or datetime.now().isoformat(timespec='seconds'))))
     # Preserve a recoverable snapshot before replacing any live data.
     backups_dir = _tenant_data_dir() / 'backups'
     backups_dir.mkdir(parents=True, exist_ok=True)
@@ -2076,6 +2117,12 @@ def restore_backup_data():
                 con.execute('''INSERT OR IGNORE INTO topics(title,category,objective,content,source,created_at,updated_at)
                                VALUES(?,?,?,?,?,?,?)''',
                             (title, category, objective, content, 'cadastrado pelo usuário', created_at, updated_at))
+            # Restaurar pesquisas de forma aditiva: nunca excluir ou sobrescrever
+            # um tema personalizado ou um tema online mais recente.
+            for title,category,objective,content,provenance,created_at,updated_at in normalized_researched:
+                con.execute('''INSERT OR IGNORE INTO topics(title,category,objective,content,source,created_at,updated_at)
+                               VALUES(?,?,?,?,?,?,?)''',
+                            (title,category,objective,content,provenance,created_at,updated_at))
             con.commit()
     except Exception:
         return jsonify({'error': 'Não foi possível restaurar os temas. O estado atual foi preservado em uma cópia de segurança local.'}), 500
@@ -2086,7 +2133,8 @@ def restore_backup_data():
     }
     write_state(restored_state)
     return jsonify({'ok': True, 'employees': len(employees), 'history': len(restored_state['history']),
-                    'custom_topics': len(normalized_topics), 'message': 'Backup restaurado. Foi salva uma cópia dos dados anteriores neste computador.'})
+                    'custom_topics': len(normalized_topics), 'researched_topics': len(normalized_researched),
+                    'message': 'Backup restaurado. Foi salva uma cópia dos dados anteriores neste computador.'})
 
 @app.post('/api/research-topic')
 def research_topic():
