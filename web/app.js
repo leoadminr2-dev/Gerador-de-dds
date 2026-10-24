@@ -749,7 +749,7 @@ $('backup-file').addEventListener('change',async e=>{
  const result=$('backup-result');
  try{const backup=JSON.parse(await file.text());if(backup.format!=='gerador-dds-backup')throw new Error('Este arquivo não parece ser uma cópia de segurança do Gerador de DDS.');
   const employeeCount=Array.isArray(backup.state?.employees)?backup.state.employees.length:0;
-  if(!confirm(`ATENÇÃO: a restauração substituirá os dados atuais por uma cópia com ${employeeCount} colaboradores. Os dados atuais terão uma cópia de segurança antes da troca. Continuar?`))return;
+  if(!confirm(`ATENÇÃO: a restauração substituirá colaboradores, configurações e histórico usando uma cópia com ${employeeCount} colaboradores. Os temas serão adicionados sem apagar os existentes. Uma cópia dos dados anteriores será salva antes. Continuar?`))return;
   result.classList.remove('hidden','error');result.textContent='Validando e restaurando a cópia de segurança…';
   const response=await api('/api/restore-backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)});
   await loadState(false);await loadTopics();renderRoster();result.classList.remove('error');result.classList.remove('hidden');result.textContent=`Restauração concluída: ${response.employees} colaboradores, ${response.history} registros de histórico e ${response.custom_topics} temas personalizados e ${response.researched_topics||0} temas pesquisados. ${response.message}`;toast('Cópia de segurança restaurada com sucesso.')
