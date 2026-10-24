@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from html.parser import HTMLParser
 from flask import Flask, jsonify, request, send_from_directory, abort, g, session, Response
 from werkzeug.utils import secure_filename
-import fitz
+import pymupdf as fitz
 from openpyxl import load_workbook
 
 ROOT = Path(getattr(__import__('sys'), '_MEIPASS', Path(__file__).resolve().parent))
@@ -2086,6 +2086,8 @@ def dds_backup_diagnostics():
                         'error': 'A estrutura do backup remoto é inválida.'}), 503
     remote_people = len(saved_state['employees'])
     remote_history = len(saved_state.get('history', [])) if isinstance(saved_state.get('history'), list) else None
+    state_matches = (json.dumps(saved_state,sort_keys=True,ensure_ascii=False) ==
+                     json.dumps(read_state(),sort_keys=True,ensure_ascii=False))
     local_state = read_state()
     local_people = len(local_state.get('employees', []))
     return jsonify({
@@ -2095,6 +2097,7 @@ def dds_backup_diagnostics():
         'history_count_remote': remote_history,
         'research_topics_in_backup': isinstance(backup.get('researched_topics'), list),
         'local_has_fewer_employees': local_people < remote_people,
+        'state_matches': state_matches,
         'snapshot_exported_at': backup.get('exported_at'),
         'note': 'Conferência somente leitura; nenhum backup foi restaurado ou substituído.'
     })
@@ -2232,12 +2235,21 @@ def research_topic():
     # Reutilizar primeiro o tema exato quando for material da biblioteca inicial.
     # Assim a consulta evita custo e esperas, sem afirmar que houve busca ao vivo.
     saved=_saved_topic_for_reuse(title)
-    if saved and saved.get('source') == 'biblioteca inicial':
+    # Reutilizar primeiro temas catalogados ou já pesquisados, sem repetir
+    # chamadas externas. refresh_online=true permite uma atualização consciente.
+    source_tag = str(saved.get('source','')) if saved else ''
+    if saved and body.get('refresh_online') is not True and (
+        source_tag == 'biblioteca inicial' or
+        source_tag.startswith('WEB-PESQUISADO:')
+    ):
+        metadata=topic_source_metadata(source_tag)
         return jsonify({
             'ok':True,'mode':'library','title':saved['title'],
             'category':saved['category'],'objective':saved['objective'],
-            'content':saved['content'],'sources':[],
-            'message':'Tema encontrado na biblioteca inicial. Material de apoio, não uma pesquisa ao vivo; revise antes de apresentar.'
+            'content':saved['content'],'sources':metadata.get('sources',[]),
+            'message':('Tema existente da biblioteca inicial, sem pesquisa online nesta consulta.'
+                       if source_tag == 'biblioteca inicial' else
+                       'Tema já pesquisado, recuperado da biblioteca com referências históricas. Para buscar fontes atualizadas use refresh_online=true.')
         })
     # A pesquisa desta ação precisa de evidência obtida agora; a biblioteca local
     # não é usada como substituta silenciosa quando as fontes online falham.
