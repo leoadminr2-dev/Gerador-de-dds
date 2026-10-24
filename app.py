@@ -2015,6 +2015,43 @@ def backup_payload() -> dict:
 def export_backup_data():
     return jsonify(backup_payload())
 
+@app.get('/api/backup-diagnostics')
+def dds_backup_diagnostics():
+    """Read-only, authenticated verification. Never replace the cloud snapshot."""
+    upstream = _vault_proxy('state')
+    if isinstance(upstream, tuple):
+        return upstream
+    if upstream.status_code != 200:
+        return jsonify({'ok': False, 'vault_http_status': upstream.status_code,
+                        'error': 'Não foi possível conferir o cofre remoto.'}), 503
+    data = upstream.get_json(silent=True)
+    backup = data.get('backup') if isinstance(data, dict) else None
+    if not isinstance(backup, dict) or backup.get('format') != 'gerador-dds-backup':
+        return jsonify({'ok': False, 'vault_accessible': True,
+                        'backup_present': False,
+                        'error': 'Nenhum backup DDS válido foi encontrado no cofre.'}), 503
+    saved_state = backup.get('state')
+    if not isinstance(saved_state, dict) or not isinstance(saved_state.get('employees'), list):
+        return jsonify({'ok': False, 'vault_accessible': True,
+                        'backup_present': True,
+                        'error': 'A estrutura do backup remoto é inválida.'}), 503
+    remote_people = len(saved_state['employees'])
+    remote_history = len(saved_state.get('history', [])) if isinstance(saved_state.get('history'), list) else None
+    local_state = read_state()
+    local_people = len(local_state.get('employees', []))
+    return jsonify({
+        'ok': True, 'vault_accessible': True, 'backup_present': True,
+        'employee_count_remote': remote_people,
+        'employee_count_local': local_people,
+        'history_count_remote': remote_history,
+        'research_topics_in_backup': isinstance(backup.get('researched_topics'), list),
+        'local_has_fewer_employees': local_people < remote_people,
+        'snapshot_exported_at': backup.get('exported_at'),
+        'note': 'Conferência somente leitura; nenhum backup foi restaurado ou substituído.'
+    })
+
+
+
 
 @app.post('/api/restore-backup')
 def restore_backup_data():
@@ -2128,7 +2165,7 @@ def restore_backup_data():
         return jsonify({'error': 'Não foi possível restaurar os temas. O estado atual foi preservado em uma cópia de segurança local.'}), 500
     restored_state = {
         'employees': employees,
-        'history': raw_history[:100],
+        'history': raw_history,
         'settings': imported_state.get('settings', default_state()['settings'])
     }
     write_state(restored_state)

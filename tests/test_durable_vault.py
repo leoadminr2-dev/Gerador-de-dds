@@ -59,6 +59,7 @@ class DurableVaultProxyTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/vault/state').status_code,401)
         self.assertEqual(self.client.get('/api/vault/pdf/test.pdf').status_code,401)
         self.assertEqual(self.client.put('/api/vault/state',data=b'{}').status_code,401)
+        self.assertEqual(self.client.get('/api/backup-diagnostics').status_code,401)
 
     def test_owner_uses_server_secret_and_never_leaks_it_to_browser(self):
         login=self.client.post('/api/owner-login',json={
