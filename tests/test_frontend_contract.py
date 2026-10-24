@@ -27,6 +27,14 @@ class FrontendOperationalContractTests(unittest.TestCase):
         self.assertIn("credentials:'same-origin',cache:'no-store'", self.js)
         self.assertIn('Não sobrescreva o backup', self.js)
 
+    def test_research_cache_control_and_verified_backup_comparison(self):
+        html=(ROOT/'web'/'index.html').read_text(encoding='utf-8')
+        self.assertIn('id="refresh-online"',html)
+        self.assertIn("refresh_online:!!$('refresh-online')?.checked",self.js)
+        self.assertIn('body.state_matches===true',self.js)
+        self.assertIn('Localizar tema ou pesquisar fontes',html)
+        self.assertIn('Localizar tema ou pesquisar fontes',self.js)
+
     def test_all_shifts_and_nonexpiring_license_stay_supported(self):
         self.assertIn("payload.shift==='TODOS'",self.js)
         self.assertIn("'/api/generate-bulk'",self.js)
