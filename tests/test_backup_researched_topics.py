@@ -119,6 +119,33 @@ class BackupResearchedTopicTests(unittest.TestCase):
         proxy.assert_called_once_with('state')
         self.assertEqual(dds.read_state()['employees'], [])
 
+    def test_read_only_diagnostics_compares_content_not_only_headcount(self):
+        from flask import jsonify
+        remote = dds.backup_payload()
+        remote['state']['employees'] = [{
+            'id': 'one', 'name': 'Registro original', 'shift': 'DIURNO'
+        }]
+        dds.write_state({'employees': [{
+            'id': 'one', 'name': 'Registro modificado', 'shift': 'DIURNO'
+        }], 'history': [], 'settings': dds.default_state()['settings']})
+        with dds.app.test_request_context('/api/backup-diagnostics'):
+            with patch.object(dds, '_vault_proxy', return_value=jsonify({'backup': remote})):
+                result=dds.dds_backup_diagnostics()
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(result.get_json()['employee_count_local'],1)
+        self.assertEqual(result.get_json()['employee_count_remote'],1)
+        self.assertFalse(result.get_json()['state_matches'])
+
+    def test_read_only_diagnostics_matches_exact_state(self):
+        from flask import jsonify
+        dds.write_state(dds.default_state())
+        remote=dds.backup_payload()
+        with dds.app.test_request_context('/api/backup-diagnostics'):
+            with patch.object(dds,'_vault_proxy',return_value=jsonify({'backup':remote})):
+                result=dds.dds_backup_diagnostics()
+        self.assertEqual(result.status_code,200)
+        self.assertTrue(result.get_json()['state_matches'])
+
     def test_read_only_diagnostics_rejects_corrupted_backup(self):
         from flask import jsonify
         with dds.app.test_request_context('/api/backup-diagnostics'):
