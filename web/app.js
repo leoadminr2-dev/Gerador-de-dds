@@ -743,6 +743,44 @@ $('backup-download').addEventListener('click',async()=>{
  try{const backup=await api('/api/backup-data');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`gerador_dds_backup_${dayISO()}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);result.classList.remove('hidden','error');result.textContent=`Cópia criada com ${backup.state.employees.length} colaboradores, ${backup.state.history.length} registros de histórico e ${backup.custom_topics.length} temas personalizados e ${(backup.researched_topics||[]).length} temas pesquisados. Guarde o arquivo em outro local.`;toast('Cópia de segurança baixada.')}catch(err){result.classList.remove('hidden');result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
  finally{button.disabled=false;button.textContent='Baixar cópia de segurança'}
 });
+$('backup-verify')?.addEventListener('click',async()=>{
+ const button=$('backup-verify'),result=$('backup-verify-result');
+ button.disabled=true;
+ const previous=button.textContent;
+ button.textContent='Conferindo cofre…';
+ result.classList.remove('hidden');
+ result.classList.remove('error');
+ result.textContent='Consultando a cópia de segurança sem modificar os dados…';
+ try{
+  const headers=await centralRequestHeaders({'Accept':'application/json'});
+  const response=await fetch('/api/backup-diagnostics',{
+   headers,credentials:'same-origin',cache:'no-store'
+  });
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok||!body.ok){
+   result.classList.add('error');
+   result.textContent=body.error||'O cofre não pôde ser conferido. Faça download de uma cópia em segurança.';
+   return;
+  }
+  const remote=Number(body.employee_count_remote||0);
+  const local=Number(body.employee_count_local||0);
+  const hist=body.history_count_remote;
+  const same=remote===local;
+  result.classList.toggle('error',!same);
+  result.textContent='Cofre acessível: '+remote+' colaboradores, '+
+    (hist===null?'histórico não informado':hist+' registros de histórico')+
+    '. Servidor atual: '+local+' colaboradores. '+
+    (same?'Quantidades conferem; isso não substitui um teste de restauração.':
+      'ATENÇÃO: as quantidades são diferentes. Não sobrescreva o backup sem verificar qual versão é correta.')+
+    (body.research_topics_in_backup?' Temas pesquisados presentes no formato de backup.':
+      ' Backup remoto ainda no formato anterior, sem campo de pesquisas salvas.');
+ }catch(err){
+  result.classList.add('error');
+  result.textContent='Falha ao conferir o cofre: '+(err.message||'conexão indisponível');
+ }finally{
+  button.disabled=false;button.textContent=previous;
+ }
+});
 $('backup-restore-trigger').addEventListener('click',()=>$('backup-file').click());
 $('backup-file').addEventListener('change',async e=>{
  const file=e.target.files?.[0];e.target.value='';if(!file)return;

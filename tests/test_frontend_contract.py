@@ -20,6 +20,13 @@ class FrontendOperationalContractTests(unittest.TestCase):
         self.assertIn("await durableVaultSync(backup)",self.js)
         self.assertIn('window.confirm(',self.js)
 
+    def test_backup_inspection_is_read_only_and_separate_from_restore(self):
+        self.assertIn("fetch('/api/backup-diagnostics'", self.js)
+        self.assertIn("id=\"backup-verify\"", (ROOT/'web'/'index.html').read_text(encoding='utf-8'))
+        self.assertIn("id=\"backup-verify-result\"", (ROOT/'web'/'index.html').read_text(encoding='utf-8'))
+        self.assertIn("credentials:'same-origin',cache:'no-store'", self.js)
+        self.assertIn('Não sobrescreva o backup', self.js)
+
     def test_all_shifts_and_nonexpiring_license_stay_supported(self):
         self.assertIn("payload.shift==='TODOS'",self.js)
         self.assertIn("'/api/generate-bulk'",self.js)
