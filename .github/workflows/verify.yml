@@ -22,5 +22,7 @@ jobs:
         run: python -m py_compile app.py
       - name: Verificar sintaxe JavaScript
         run: node --check web/app.js
+      - name: Verificar aviso de verificação sem bloqueio
+        run: node tools/test_verification_notice.cjs
       - name: Executar testes de pesquisa e contingência
         run: python -m unittest discover -s tests -v
