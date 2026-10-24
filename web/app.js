@@ -740,7 +740,7 @@ $('template-use-default')?.addEventListener('click',async()=>{
 });
 $('backup-download').addEventListener('click',async()=>{
  const button=$('backup-download'),result=$('backup-result');button.disabled=true;button.textContent='Preparando cópia…';
- try{const backup=await api('/api/backup-data');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`gerador_dds_backup_${dayISO()}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);result.classList.remove('hidden','error');result.textContent=`Cópia criada com ${backup.state.employees.length} colaboradores, ${backup.state.history.length} registros de histórico e ${backup.custom_topics.length} temas personalizados. Guarde o arquivo em outro local.`;toast('Cópia de segurança baixada.')}catch(err){result.classList.remove('hidden');result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
+ try{const backup=await api('/api/backup-data');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`gerador_dds_backup_${dayISO()}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);result.classList.remove('hidden','error');result.textContent=`Cópia criada com ${backup.state.employees.length} colaboradores, ${backup.state.history.length} registros de histórico e ${backup.custom_topics.length} temas personalizados e ${(backup.researched_topics||[]).length} temas pesquisados. Guarde o arquivo em outro local.`;toast('Cópia de segurança baixada.')}catch(err){result.classList.remove('hidden');result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
  finally{button.disabled=false;button.textContent='Baixar cópia de segurança'}
 });
 $('backup-restore-trigger').addEventListener('click',()=>$('backup-file').click());
@@ -749,10 +749,10 @@ $('backup-file').addEventListener('change',async e=>{
  const result=$('backup-result');
  try{const backup=JSON.parse(await file.text());if(backup.format!=='gerador-dds-backup')throw new Error('Este arquivo não parece ser uma cópia de segurança do Gerador de DDS.');
   const employeeCount=Array.isArray(backup.state?.employees)?backup.state.employees.length:0;
-  if(!confirm(`ATENÇÃO: a restauração substituirá os dados atuais por uma cópia com ${employeeCount} colaboradores. Os dados atuais terão uma cópia de segurança antes da troca. Continuar?`))return;
+  if(!confirm(`ATENÇÃO: a restauração substituirá colaboradores, configurações e histórico usando uma cópia com ${employeeCount} colaboradores. Os temas serão adicionados sem apagar os existentes. Uma cópia dos dados anteriores será salva antes. Continuar?`))return;
   result.classList.remove('hidden','error');result.textContent='Validando e restaurando a cópia de segurança…';
   const response=await api('/api/restore-backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(backup)});
-  await loadState(false);await loadTopics();renderRoster();result.classList.remove('error');result.classList.remove('hidden');result.textContent=`Restauração concluída: ${response.employees} colaboradores, ${response.history} registros de histórico e ${response.custom_topics} temas personalizados. ${response.message}`;toast('Cópia de segurança restaurada com sucesso.')
+  await loadState(false);await loadTopics();renderRoster();result.classList.remove('error');result.classList.remove('hidden');result.textContent=`Restauração concluída: ${response.employees} colaboradores, ${response.history} registros de histórico e ${response.custom_topics} temas personalizados e ${response.researched_topics||0} temas pesquisados. ${response.message}`;toast('Cópia de segurança restaurada com sucesso.')
  }catch(err){result.classList.remove('hidden');result.classList.add('error');result.textContent=err.message;toast(err.message,'error')}
 });
 
