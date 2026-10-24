@@ -150,10 +150,10 @@ class DurableVaultProxyTests(unittest.TestCase):
         def mocked_open(req,timeout):
             requests.append(req)
             return FakeVaultResponse({'ok':True})
-        with patch.object(dds,'urlopen',side_effect=mocked_open), \\
-             patch.object(dds,'_web_search',return_value=sources), \\
-             patch.object(dds,'_draft_from_sources',return_value='TEMA\\nMedidas preventivas'), \\
-             patch.object(dds,'validate_content_fits_pdf'):
+        with (patch.object(dds,'urlopen',side_effect=mocked_open),
+              patch.object(dds,'_web_search',return_value=sources),
+              patch.object(dds,'_draft_from_sources',return_value='TEMA E PREVENÇÃO'),
+              patch.object(dds,'validate_content_fits_pdf')):
             result=self.client.post('/api/research-topic',json={'title':'Tema remoto inédito'})
         self.assertEqual(result.status_code,200,result.get_json())
         self.assertEqual(result.get_json()['mode'],'online')
