@@ -1844,6 +1844,48 @@ def dds_vault_get_state():
     return _vault_proxy('state')
 
 
+def _guarded_vault_state_write(snapshot: dict, body: bytes) -> Response:
+    """Do not replace a healthy cloud backup with a likely incomplete local copy.
+
+    The check applies to automatic server writes AND browser-triggered writes.
+    Intentional mass deletion requires a separate, explicitly reviewed workflow.
+    """
+    if not isinstance(snapshot, dict) or snapshot.get('format') != 'gerador-dds-backup':
+        result = jsonify({'error': 'Formato de backup inválido.'})
+        result.status_code = 400
+        return result
+    state = snapshot.get('state')
+    if not isinstance(state, dict) or not isinstance(state.get('employees'), list) or not isinstance(state.get('history'), list):
+        result = jsonify({'error': 'Estrutura de colaboradores ou histórico inválida.'})
+        result.status_code = 400
+        return result
+    current = _vault_proxy('state', 'GET')
+    if isinstance(current, tuple) or current.status_code != 200:
+        result = jsonify({'error': 'Cofre não pôde ser conferido. Nenhum backup foi sobrescrito.'})
+        result.status_code = 503
+        return result
+    payload = current.get_json(silent=True)
+    previous = payload.get('backup') if isinstance(payload, dict) else None
+    old_state = previous.get('state') if isinstance(previous, dict) else None
+    if isinstance(old_state, dict):
+        old_people = old_state.get('employees')
+        old_history = old_state.get('history')
+        new_people = state['employees']
+        new_history = state['history']
+        unsafe_people = isinstance(old_people, list) and len(old_people) >= 10 and len(new_people) * 5 < len(old_people) * 4
+        unsafe_history = isinstance(old_history, list) and len(old_history) >= 10 and len(new_history) * 5 < len(old_history) * 4
+        if unsafe_people or unsafe_history:
+            result = jsonify({
+                'error': 'Proteção contra perda de dados: a cópia local tem muito menos colaboradores ou histórico do que o backup remoto. Confira e restaure os dados antes de atualizar o cofre.',
+                'code': 'vault-snapshot-regression',
+                'remote_preserved': True
+            })
+            result.status_code = 409
+            app.logger.warning('DDS: preservado backup remoto diante de estado local incompleto')
+            return result
+    return _vault_proxy('state', 'PUT', body)
+
+
 @app.put('/api/vault/state')
 def dds_vault_save_state():
     if request.content_length is not None and request.content_length > 2 * 1024 * 1024:
@@ -1851,7 +1893,11 @@ def dds_vault_save_state():
     body = request.get_data(cache=False)
     if len(body) > 2 * 1024 * 1024:
         return jsonify({'error': 'Backup ultrapassa 2 MB.'}), 413
-    return _vault_proxy('state', 'PUT', body)
+    try:
+        snapshot = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return jsonify({'error': 'Backup JSON inválido.'}), 400
+    return _guarded_vault_state_write(snapshot, body)
 
 
 @app.get('/api/vault/pdf/<filename>')
@@ -1881,6 +1927,8 @@ def persist_dds_mutations_in_vault(response):
     path=request.path
     tracked=(
         path.startswith('/api/topics') or path.startswith('/api/employees')
+        or (path == '/api/research-topic' and
+            (response.get_json(silent=True) or {}).get('mode') == 'online')
         or path in {'/api/import-roster','/api/restore-backup',
                     '/api/generate','/api/generate-bulk',
                     '/api/template','/api/template/reset'}
@@ -1891,8 +1939,9 @@ def persist_dds_mutations_in_vault(response):
         snapshot=backup_payload()
         body=json.dumps(snapshot,ensure_ascii=False,separators=(',',':')).encode('utf-8')
         if len(body) <= 2 * 1024 * 1024:
-            saved=_vault_proxy('state','PUT',body)
-            response.headers['X-DDS-Vault-State'] = 'ok' if saved.status_code==200 else 'unavailable'
+            saved=_guarded_vault_state_write(snapshot, body)
+            response.headers['X-DDS-Vault-State'] = ('ok' if saved.status_code==200 else
+                                                     'guarded' if saved.status_code==409 else 'unavailable')
             if saved.status_code!=200:
                 app.logger.warning('DDS: backup remoto falhou apos uma alteracao local, HTTP %s',saved.status_code)
         else:
