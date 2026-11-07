@@ -5,14 +5,14 @@ function minuteInBrasilia(value){
  const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date(value));
  return Number(parts.find(p=>p.type==="hour").value)*60+Number(parts.find(p=>p.type==="minute").value);
 }
-function inWindow(value){const m=minuteInBrasilia(value);return m>=180&&m<270;}
+function inWindow(value){const m=minuteInBrasilia(value);return m>=240&&m<330;}
 function noticeTTL(status){
  if(!status||status.active!==true)return 0;
  const server=Date.parse(status.server_now),expires=Date.parse(status.expires_at);
  if(!Number.isFinite(server)||!Number.isFinite(expires)||!inWindow(server))return 0;
  const remaining=expires-server;
  if(remaining<=0||remaining>600000)return 0;
- const endWindow=(270-minuteInBrasilia(server))*60000-(server%60000);
+ const endWindow=(330-minuteInBrasilia(server))*60000-(server%60000);
  return Math.max(0,Math.min(remaining,endWindow));
 }
 function mount(config){
@@ -45,7 +45,7 @@ function mount(config){
    const ttl=noticeTTL(status);
    hide();
    if(ttl>0){
-    el.textContent=String(status.message||"Verificação técnica em andamento. Você pode continuar usando o aplicativo.").slice(0,300)+" • Janela: 03h–04h30 (Brasília).";
+    el.textContent=String(status.message||"Verificação técnica em andamento. Você pode continuar usando o aplicativo.").slice(0,300)+" • Janela: 04h–05h30 (Brasília).";
     el.hidden=false;
     expiryTimer=root.setTimeout(hide,ttl);
    }
